@@ -320,9 +320,14 @@ const SONG_CACHE={};
 // 한 판에서 노래가 끝나면 같은 노래를 되풀이하지 않고 다른 노래로 이어감 (음색은 그대로)
 function nextSong(cur,k){const N=SONGS.length,idx=(cur.idx+37*k+11)%N;const notes=SONG_CACHE[idx]||(SONG_CACHE[idx]=parseSong(SONGS[idx]));return{idx,notes,timbre:cur.timbre};}
 // 1번부터 끝까지 한 바퀴 돌고, 다음 바퀴는 순서를 섞어서 다시. 바퀴마다 음색도 바뀜
-function songForNo(no){if(no<6){const i=6;return{idx:i,notes:SONG_CACHE[i]||(SONG_CACHE[i]=parseSong(SONGS[i])),timbre:0};} const k=no-6,N=SONGS.length,cyc=Math.floor(k/N),pos=k%N;
+const EARLY_SONGS=[6,9,14,22,33]; // No.1~5: 메리의 어린 양·프레르 자크·런던 다리·노를 저어라·핫 크로스 번 (판마다 다른 곡)
+function songIdxRaw(no){if(no<6)return EARLY_SONGS[(no-1)%EARLY_SONGS.length];const k=no-6,N=SONGS.length,cyc=Math.floor(k/N),pos=k%N;
   let idx=pos;if(cyc>0){const r=mulberry32(cyc*977+31),perm=[...Array(N).keys()];for(let i=N-1;i>0;i--){const j=Math.floor(r()*(i+1));[perm[i],perm[j]]=[perm[j],perm[i]];}idx=perm[pos];}
-  const notes=SONG_CACHE[idx]||(SONG_CACHE[idx]=parseSong(SONGS[idx]));return{idx,notes,timbre:(cyc+pos)%4};}
+  return idx;}
+function songForNo(no){no=Math.max(1,no|0);let idx=songIdxRaw(no);
+  if(no>1&&idx===songIdxRaw(no-1))idx=(idx+1)%SONGS.length; // 바로 앞 번호와 같은 곡이면 다른 곡으로
+  const k=Math.max(0,no-6),N=SONGS.length,cyc=Math.floor(k/N),pos=k%N;
+  const notes=SONG_CACHE[idx]||(SONG_CACHE[idx]=parseSong(SONGS[idx]));return{idx,notes,timbre:no<6?0:(cyc+pos)%4};}
 
 // ---------- 레벨별 크기 ----------
 function stageParams(lv,st){
