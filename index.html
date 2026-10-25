@@ -320,7 +320,7 @@ const SONG_CACHE={};
 // 한 판에서 노래가 끝나면 같은 노래를 되풀이하지 않고 다른 노래로 이어감 (음색은 그대로)
 function nextSong(cur,k){const N=SONGS.length,idx=(cur.idx+37*k+11)%N;const notes=SONG_CACHE[idx]||(SONG_CACHE[idx]=parseSong(SONGS[idx]));return{idx,notes,timbre:cur.timbre};}
 // 1번부터 끝까지 한 바퀴 돌고, 다음 바퀴는 순서를 섞어서 다시. 바퀴마다 음색도 바뀜
-function songForNo(no){if(no<6){const i=6;return{idx:i,notes:SONG_CACHE[i]||(SONG_CACHE[i]=parseSong(SONGS[i])),timbre:0};} // No.1~5: 맑은 오르골 소리로 짧은 동요const k=no-6,N=SONGS.length,cyc=Math.floor(k/N),pos=k%N;
+function songForNo(no){if(no<6){const i=6;return{idx:i,notes:SONG_CACHE[i]||(SONG_CACHE[i]=parseSong(SONGS[i])),timbre:0};} const k=no-6,N=SONGS.length,cyc=Math.floor(k/N),pos=k%N;
   let idx=pos;if(cyc>0){const r=mulberry32(cyc*977+31),perm=[...Array(N).keys()];for(let i=N-1;i>0;i--){const j=Math.floor(r()*(i+1));[perm[i],perm[j]]=[perm[j],perm[i]];}idx=perm[pos];}
   const notes=SONG_CACHE[idx]||(SONG_CACHE[idx]=parseSong(SONGS[idx]));return{idx,notes,timbre:(cyc+pos)%4};}
 
@@ -3066,9 +3066,11 @@ const PALS_DARK=[['#39ff88','#ff3fd2','#2de2ff','#ffe94a','#ff8a1f','#b388ff'],[
   ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93'],['#ffadad','#fdffb6','#caffbf','#9bf6ff','#bdb2ff','#ffc6ff'],['#f72585','#4cc9f0','#7209b7'],['#e8414f','#5b5fc7','#3aa79b']];
 const PALS_LIGHT=[['#e63946','#1d3557','#2a9d8f'],['#d62828','#f77f00','#003049','#2a9d8f'],['#7209b7','#f72585','#4361ee'],['#06a77d','#d5573b','#3c1642'],
   ['#ef476f','#118ab2','#06d6a0','#7b2cbf'],['#c1121f','#669bbc','#003049'],['#2b9348','#e85d04','#5a189a','#0077b6'],['#ff006e','#3a86ff','#8338ec','#fb5607']];
-function arrowCol(a,th){ // 모든 화살은 검정(어두운 테마는 흰색), 금색 화살만 금빛
+function arrowCol(a,th){ // 금색 화살은 금빛 / 6판에 1판은 검정(어두운 테마 흰색) / 나머지는 여러 색
   if(B.goldIds&&B.goldIds.has(a.id))return th.dark?'#f0c35a':'#c9962e';
-  return th.dark?'#f3efe4':'#1c1c22';}
+  if(a.reg>=0&&B.shape&&B.shape.pal)return paintCol(B.shape.pal[a.reg],th);
+  if(B.mono)return th.dark?'#f3efe4':'#1c1c22';
+  const sets=th.dark?PALS_DARK:PALS_LIGHT,p=sets[(B.palI||0)%sets.length];return p[a.color%p.length];}
 // 금색 화살이 빠질 때 함께 빠지는 화살 수
 const goldN=no=>no<300?2:no<600?3:no<800?4:no<1000?5:no<2000?6:no<3000?7:no<4000?8:no<5000?9:10;
 
@@ -3201,7 +3203,7 @@ function pauseT(){if(tRun!==null){tAcc+=performance.now()-tRun;tRun=null;}clearI
 function resetT(){tAcc=0;tRun=null;clearInterval(tIv);showT();}
 const bestKey=()=>DC?'d'+todayKey():String(B.no);
 function loadStage(){
-  const T=tgt();B=buildBoard(T.lv,T.st,T.daily);B.lv=T.lv;B.st=T.st;B.no=DC?null:toNo(T.lv,T.st);B.key=modeKey();B.palI=hashNo((B.no||0)*31+(DC?dayNum():0)+17)>>>3;B.goldMix=!DC&&(B.no||0)>=30;B.goldIds=new Set();if(B.goldMix){const k=Math.max(1,Math.min(5,Math.floor((B.no||0)/1000))),rg=mulberry32((B.no||0)*131+7);while(B.goldIds.size<Math.min(k,B.arrows.length))B.goldIds.add(Math.floor(rg()*B.arrows.length));}
+  const T=tgt();B=buildBoard(T.lv,T.st,T.daily);B.lv=T.lv;B.st=T.st;B.no=DC?null:toNo(T.lv,T.st);B.key=modeKey();B.palI=hashNo((B.no||0)*31+(DC?dayNum():0)+17)>>>3;B.mono=!DC&&(B.no||0)>=20&&!(B.shape&&B.shape.pal)&&hashNo((B.no||0)*17+3)%6===0;B.goldMix=!DC&&(B.no||0)>=30;B.goldIds=new Set();if(B.goldMix){const k=Math.max(1,Math.min(5,Math.floor((B.no||0)/1000))),rg=mulberry32((B.no||0)*131+7);while(B.goldIds.size<Math.min(k,B.arrows.length))B.goldIds.add(Math.floor(rg()*B.arrows.length));}
   B.tint=null;if(B.mask&&B.shape){const g={};for(let i=0;i<B.mask.length;i++){if(!B.mask[i])continue;const col=B.shape.pal?B.shape.pal[B.region[i]]:B.shape.tint;(g[col]||(g[col]=[])).push(i);}B.tint=g;}
   occ=new Int16Array(B.cols*B.rows).fill(-1);
   for(const a of B.arrows){a.alive=true;a.removing=false;a.gone=false;a.wrong=false;a.anim=null;a.flash=0;
@@ -3279,6 +3281,7 @@ function draw(now){
     if(a.flash>now){const on=Math.floor((a.flash-now)/110)%2===0;if(on){col=th.wrong;w=1.2;}}
     if(a.id===hintId){const k=(Math.sin(now/180)+1)/2;ctx.globalAlpha=0.25+0.35*k;strokeArrow(a,s,col,3.2);ctx.globalAlpha=1;w=1.3;}
     if(th.glow){ctx.globalAlpha=0.22;strokeArrow(a,s,col,w*2.6);ctx.globalAlpha=1;}
+    if(!a.wrong&&B.goldIds&&B.goldIds.has(a.id)){ctx.globalAlpha=th.dark?0.4:0.5;strokeArrow(a,s,'#ffe08a',w*2.6);ctx.globalAlpha=1;} // 여러 색 사이에서도 금색 화살이 보이도록 빛무리
     strokeArrow(a,s,col,w);
   }
 }
