@@ -419,10 +419,10 @@ function generate2(cols,rows,mnL,mxL,rand,mask,lenPow,region,wall){
   const occ=new Int32Array(N).fill(-1),rayMax=new Int32Array(N).fill(-1),arrows=[],open=new Uint16Array(N),rays=[],blocked=[];
   const DX=[1,-1,0,0],DY=[0,0,1,-1];
   const clr=[new Uint8Array(N),new Uint8Array(N),new Uint8Array(N),new Uint8Array(N)];
-  const calc=()=>{for(let y=0;y<rows;y++){let ok=1;for(let x=cols-1;x>=0;x--){const i=y*cols+x;clr[0][i]=ok;if(occ[i]>=0||(wall&&wall[i]))ok=0;}
-      ok=1;for(let x=0;x<cols;x++){const i=y*cols+x;clr[1][i]=ok;if(occ[i]>=0||(wall&&wall[i]))ok=0;}}
-    for(let x=0;x<cols;x++){let ok=1;for(let y=rows-1;y>=0;y--){const i=y*cols+x;clr[2][i]=ok;if(occ[i]>=0||(wall&&wall[i]))ok=0;}
-      ok=1;for(let y=0;y<rows;y++){const i=y*cols+x;clr[3][i]=ok;if(occ[i]>=0||(wall&&wall[i]))ok=0;}}};
+  const calc=()=>{for(let y=0;y<rows;y++){let ok=1;for(let x=cols-1;x>=0;x--){const i=y*cols+x;clr[0][i]=ok;if(occ[i]>=0)ok=0;}
+      ok=1;for(let x=0;x<cols;x++){const i=y*cols+x;clr[1][i]=ok;if(occ[i]>=0)ok=0;}}
+    for(let x=0;x<cols;x++){let ok=1;for(let y=rows-1;y>=0;y--){const i=y*cols+x;clr[2][i]=ok;if(occ[i]>=0)ok=0;}
+      ok=1;for(let y=0;y<rows;y++){const i=y*cols+x;clr[3][i]=ok;if(occ[i]>=0)ok=0;}}};
   const ok=(x,y)=>x>=0&&y>=0&&x<cols&&y<rows;
   const shuffle2=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
   const freeCell=(i,reg)=>inM(i)&&occ[i]<0&&(!region||region[i]===reg);
@@ -483,7 +483,7 @@ function generate2(cols,rows,mnL,mxL,rand,mask,lenPow,region,wall){
       for(let L=path.length;L>=2&&!best;L--)for(const cand of [path.slice(0,L),path.slice(0,L).reverse()]){
         const h=cand[L-1],q=cand[L-2],dx=X(h)-X(q),dy=Y(h)-Y(q),d=dx===1?0:dx===-1?1:dy===1?2:3,own=new Set(cand);
         let lo=-1;for(const c of cand)if(RM[c]>lo)lo=RM[c];let hi=Infinity,bad=false,x=X(h)+dx,y=Y(h)+dy;
-        while(ok(x,y)){const r=y*cols+x;if(own.has(r)||(wall&&wall[r])){bad=true;break;}if(occ[r]>=0&&arrows[occ[r]].ix<hi)hi=arrows[occ[r]].ix;x+=dx;y+=dy;}
+        while(ok(x,y)){const r=y*cols+x;if(own.has(r)){bad=true;break;}if(occ[r]>=0&&arrows[occ[r]].ix<hi)hi=arrows[occ[r]].ix;x+=dx;y+=dy;}
         if(bad||!(lo<hi))continue;best={cells:cand.slice(),d,reg,ix:hi===Infinity?lo+0.5:(lo+hi)/2};break;}
       if(best){const id=arrows.length;arrows.push(best);for(const c of best.cells)occ[c]=id;mark(best);ch=1;}}
   }
@@ -597,7 +597,7 @@ function mkBox(shape,cx,cy,R){const poly=ballPoly(shape,R),hw=R*0.88,hh=hw*1.15;
   const inBox=(x,y)=>{const px=x+.5-cx,py=y+.5-cy;return shape==='circle'?Math.hypot(px,py)<R:shape==='square'?(Math.abs(px)<hw&&Math.abs(py)<hh):pip(poly,px,py);};
   return{shape,cx,cy,rad:R,hw,hh,poly,inBox};}
 const ballF=no=>PW([[35,0.34],[600,0.29],[1500,0.24],[3000,0.2],[5000,0.18]],no);
-const ballN=(no,b)=>{let n=Math.min(12,3+Math.floor(no/250));return Math.max(2,Math.min(n,Math.floor(ballArea(b)/7)));};
+const ballN=(no,b)=>{let n=Math.min(30,10+Math.floor(no/100));return Math.max(6,Math.min(n,Math.floor(ballArea(b)/1.8)));};
 function ballBoard(no,rand){
   const ne=no,A=PW(CURVE_ARROWS,ne),D=A*PW(CURVE_AVGLEN,ne),L=Math.round(PW(CURVE_LONG,ne)),lp=ne<1000?0.85:0.75;
   const shape=BALL_SHAPES[hashNo(no*7+1)%BALL_SHAPES.length],f=PW([[35,0.34],[600,0.29],[1500,0.24],[3000,0.2],[5000,0.18]],no);
@@ -608,8 +608,8 @@ function ballBoard(no,rand){
   const mask=new Uint8Array(cols*rows),wall=new Uint8Array(cols*rows);
   for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const k=y*cols+x;if(inBox(x,y))wall[k]=1;else mask[k]=1;}
   const arrows=generate2(cols,rows,2,L,rand,mask,lp,null,wall);
-  const n=Math.min(12,3+Math.floor(no/250));
-  return{cols,rows,arrows,text:'',mask,region:null,shape:null,song:songForNo(no),ball:{shape,cx,cy,rad,hw,hh,poly,n,wall}};
+  const ball={shape,cx,cy,rad,hw,hh,poly,wall};ball.n=ballN(no,ball);
+  return{cols,rows,arrows,text:'',mask,region:null,shape:null,song:songForNo(no),ball};
 }
 function bigBoard(no,rand,sh,daily){
   const ne=!daily&&no%10===0?Math.max(26,Math.round(no*0.55)):no;
@@ -3110,14 +3110,15 @@ function ballInside(b,x,y,m){if(b.shape==='circle')return Math.hypot(x,y)<b.rad-
   if(!pip(b.poly,x,y))return false;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++){if(segD(b.poly[j],b.poly[i],x,y).d<m)return false;}return true;}
 function segD(A,Bp,x,y){const dx=Bp[0]-A[0],dy=Bp[1]-A[1],t=Math.max(0,Math.min(1,((x-A[0])*dx+(y-A[1])*dy)/(dx*dx+dy*dy||1))),px=A[0]+dx*t,py=A[1]+dy*t;return{d:Math.hypot(x-px,y-py),px,py};}
 function ballInit(){const b=B.ball;BL.balls=[];if(!b)return;const r0=mulberry32((B.no||1)*977+3),W=(b.shape==='circle'?b.rad:b.shape==='square'?Math.max(b.hw,b.hh):Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1]))));
-  let br=Math.max(0.6,Math.min(2.2,Math.sqrt(0.26*ballArea(b)/(b.n*Math.PI))));
-  if(b.poly&&b.poly.length){let inr=1e9;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++)inr=Math.min(inr,segD(b.poly[j],b.poly[i],0,0).d);br=Math.min(br,Math.max(0.55,(inr-0.7)*0.55));}
+  let br=Math.max(0.36,Math.min(1.6,Math.sqrt(0.15*ballArea(b)/(b.n*Math.PI))));
+  if(b.poly&&b.poly.length){let inr=1e9;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++)inr=Math.min(inr,segD(b.poly[j],b.poly[i],0,0).d);br=Math.min(br,Math.max(0.36,(inr-0.7)*0.4));}
   for(let i=0;i<b.n;i++){let x=0,y=0,ok=false;for(let t=0;t<900&&!ok;t++){x=(r0()*2-1)*W;y=(r0()*2-1)*W;ok=ballInside(b,x,y,br+0.7)&&BL.balls.every(q=>Math.hypot(q.x-x,q.y-y)>q.r+br);}
     if(!ok){x=(r0()-.5)*0.4;y=(r0()-.5)*0.4;}
     BL.balls.push({x,y,vx:(r0()-.5)*6,vy:(r0()-.5)*6,r:br*(0.9+r0()*0.2),ph:r0()*6.28,spin:0,fly:null});}
   BL.flyT0=0;BL.last=performance.now();ballKick();}
 function ballKick(){if(!BL.raf&&B&&B.ball)BL.raf=requestAnimationFrame(ballFrame);}
-function ballStep(dt,now){const b=B.ball,g=6,ga=now/2600,gx=Math.sin(ga)*g,gy=Math.cos(ga*0.8)*g*0.6+2.5; // 천천히 기울어지는 바닥을 따라 굴러다님
+function ballStep(dt,now){const b=B.ball,g=9,ga=now/1500,gx=Math.sin(ga)*g+Math.sin(now/530)*3,gy=Math.cos(ga*0.8)*g*0.6+2.5;
+  for(const p of BL.balls){if(!p.fly&&Math.random()<dt*0.9){p.vx+=(Math.random()-.5)*7;p.vy-=2+Math.random()*4;}} // 가끔 톡톡 튐 // 천천히 기울어지는 바닥을 따라 굴러다님
   const inner=b.shape==='circle'?b.rad-0.62:null,iw=b.hw-0.62,ih=b.hh-0.62;
   for(const p of BL.balls){if(p.fly)continue;p.vx+=gx*dt;p.vy+=gy*dt;p.vx*=0.995;p.vy*=0.995;p.x+=p.vx*dt;p.y+=p.vy*dt;p.spin+=Math.hypot(p.vx,p.vy)*dt/p.r;
     if(inner){const d=Math.hypot(p.x,p.y),lim=inner-p.r;if(d>lim){const nx=p.x/d,ny=p.y/d;p.x=nx*lim;p.y=ny*lim;const vn=p.vx*nx+p.vy*ny;if(vn>0){p.vx-=1.55*vn*nx;p.vy-=1.55*vn*ny;}}}
@@ -3128,14 +3129,14 @@ function ballStep(dt,now){const b=B.ball,g=6,ga=now/2600,gx=Math.sin(ga)*g,gy=Ma
   for(let i=0;i<BL.balls.length;i++)for(let j=i+1;j<BL.balls.length;j++){const a=BL.balls[i],q=BL.balls[j];if(a.fly||q.fly)continue;const dx=q.x-a.x,dy=q.y-a.y,d=Math.hypot(dx,dy)||1e-3,m=a.r+q.r;
     if(d<m){const nx=dx/d,ny=dy/d,o=(m-d)/2;a.x-=nx*o;a.y-=ny*o;q.x+=nx*o;q.y+=ny*o;const rv=(q.vx-a.vx)*nx+(q.vy-a.vy)*ny;if(rv<0){const k=-0.9*rv;a.vx-=k*nx;a.vy-=k*ny;q.vx+=k*nx;q.vy+=k*ny;}}}}
 function drawBall(c2,x,y,r,p,now,glowK){
-  const gl=c2.createRadialGradient(x,y,0,x,y,r*2.3);gl.addColorStop(0,'rgba(255,215,120,'+(0.42*glowK)+')');gl.addColorStop(1,'rgba(255,215,120,0)');c2.fillStyle=gl;c2.beginPath();c2.arc(x,y,r*2.3,0,6.2832);c2.fill();
+  const pu=0.8+0.2*Math.sin(now/260+p.ph),gr=r*2.8,gl=c2.createRadialGradient(x,y,0,x,y,gr);gl.addColorStop(0,'rgba(255,225,140,'+(0.6*glowK*pu)+')');gl.addColorStop(1,'rgba(255,215,120,0)');c2.fillStyle=gl;c2.beginPath();c2.arc(x,y,gr,0,6.2832);c2.fill();
   const g=c2.createRadialGradient(x-r*.35,y-r*.42,r*.05,x,y,r);g.addColorStop(0,'#fffef5');g.addColorStop(.18,'#fbe7a6');g.addColorStop(.5,'#e3b350');g.addColorStop(.82,'#a8771f');g.addColorStop(1,'#5e400f');
   c2.fillStyle=g;c2.beginPath();c2.arc(x,y,r,0,6.2832);c2.fill();
   // 구르는 느낌: 표면의 옅은 띠가 돌아감
   c2.save();c2.beginPath();c2.arc(x,y,r,0,6.2832);c2.clip();c2.strokeStyle='rgba(255,240,190,.13)';c2.lineWidth=r*0.09;c2.beginPath();c2.ellipse(x,y,r*0.95,r*0.3*Math.abs(Math.cos(p.spin)),p.spin*0.5,0,6.2832);c2.stroke();c2.restore();
   c2.fillStyle='rgba(255,255,255,.95)';c2.beginPath();c2.ellipse(x-r*.36,y-r*.42,r*.3,r*.17,-.5,0,6.2832);c2.fill();
   c2.fillStyle='rgba(255,240,190,.45)';c2.beginPath();c2.ellipse(x+r*.28,y+r*.48,r*.36,r*.12,-.4,0,6.2832);c2.fill();
-  const tw=Math.max(0,Math.sin(now/380+p.ph));if(tw>0.55){const L=r*0.85*(tw-0.55)/0.45+r*0.2,sx=x+r*.62,sy=y-r*.7;c2.fillStyle='#fffbe6';c2.beginPath();
+  const tw=Math.max(0,Math.sin(now/230+p.ph));if(tw>0.3){const L=r*1.1*(tw-0.3)/0.7+r*0.25,sx=x+r*.62,sy=y-r*.7;c2.fillStyle='#fffbe6';c2.beginPath();
     c2.moveTo(sx,sy-L);c2.lineTo(sx+L*.18,sy-L*.18);c2.lineTo(sx+L,sy);c2.lineTo(sx+L*.18,sy+L*.18);c2.lineTo(sx,sy+L);c2.lineTo(sx-L*.18,sy+L*.18);c2.lineTo(sx-L,sy);c2.lineTo(sx-L*.18,sy-L*.18);c2.closePath();c2.fill();}}
 function ballFrame(now){BL.raf=0;const cv2=BL.cv;if(!cv2||!B||!B.ball||$('#game').hidden){if(cv2)BL.cx.clearRect(0,0,cv2.width,cv2.height);return;}
   const dt=Math.min(0.04,(now-BL.last)/1000);BL.last=now;ballStep(dt,now);
@@ -3207,8 +3208,18 @@ function startT(){if(tRun!==null)return;tRun=performance.now();clearInterval(tIv
 function pauseT(){if(tRun!==null){tAcc+=performance.now()-tRun;tRun=null;}clearInterval(tIv);showT();}
 function resetT(){tAcc=0;tRun=null;clearInterval(tIv);showT();}
 const bestKey=()=>DC?'d'+todayKey():String(B.no);
+// 황금화살 고르기: 화살을 몇 겹 빼야 나갈 수 있는지(겹)를 재서, 1~3겹 안쪽이면서 판 한가운데는 아닌 화살
+function pickGold(k,rg){const A=B.arrows,C=B.cols,R=B.rows,o=new Int16Array(C*R).fill(-1),layer=new Array(A.length).fill(-1);
+  A.forEach(a=>{for(const [x,y] of a.cells)o[y*C+x]=a.id;});
+  const free=a=>{const h=a.cells[a.cells.length-1];let x=h[0]+a.dx,y=h[1]+a.dy;while(x>=0&&y>=0&&x<C&&y<R){const v=o[y*C+x];if(v>=0&&v!==a.id)return false;x+=a.dx;y+=a.dy;}return true;};
+  let left=A.length,L=0;while(left>0&&L<400){const f=A.filter(a=>layer[a.id]<0&&free(a));if(!f.length)break;for(const a of f){layer[a.id]=L;left--;for(const [x,y] of a.cells)o[y*C+x]=-1;}L++;}
+  const maxL=Math.max(1,L-1),cx=(C-1)/2,cy=(R-1)/2;let md=1;const dist=a=>{let s=0;for(const [x,y] of a.cells)s+=Math.hypot((x-cx)/C,(y-cy)/R);return s/a.cells.length;};
+  A.forEach(a=>{md=Math.max(md===1?0:md,dist(a));});
+  const tiers=[a=>layer[a.id]>=1&&layer[a.id]<=Math.min(3,maxL)&&dist(a)>md*0.4,a=>layer[a.id]>=1&&layer[a.id]<=Math.max(3,Math.ceil(maxL*0.5)),a=>layer[a.id]>=1,a=>true];
+  const out=[];for(const t of tiers){const c=A.filter(a=>t(a)&&!out.includes(a.id));while(c.length&&out.length<k){out.push(c.splice(Math.floor(rg()*c.length),1)[0].id);}if(out.length>=k)break;}
+  return out;}
 function loadStage(){
-  const T=tgt();B=buildBoard(T.lv,T.st,T.daily);B.lv=T.lv;B.st=T.st;B.no=DC?null:toNo(T.lv,T.st);B.key=modeKey();B.palI=hashNo((B.no||0)*31+(DC?dayNum():0)+17)>>>3;B.mono=!DC&&(B.no||0)>=20&&!(B.shape&&B.shape.pal)&&hashNo((B.no||0)*17+3)%6===0;B.goldMix=!DC&&(B.no||0)>=30;B.goldIds=new Set();if(B.goldMix){const k=Math.max(1,Math.min(5,Math.floor((B.no||0)/1000))),rg=mulberry32((B.no||0)*131+7);while(B.goldIds.size<Math.min(k,B.arrows.length))B.goldIds.add(Math.floor(rg()*B.arrows.length));}
+  const T=tgt();B=buildBoard(T.lv,T.st,T.daily);B.lv=T.lv;B.st=T.st;B.no=DC?null:toNo(T.lv,T.st);B.key=modeKey();B.palI=hashNo((B.no||0)*31+(DC?dayNum():0)+17)>>>3;B.mono=!DC&&(B.no||0)>=20&&!(B.shape&&B.shape.pal)&&hashNo((B.no||0)*17+3)%6===0;B.goldMix=!DC&&(B.no||0)>=30;B.goldIds=new Set();if(B.goldMix){const k=Math.max(1,Math.min(5,Math.floor((B.no||0)/1000))),rg=mulberry32((B.no||0)*131+7);for(const id of pickGold(k,rg))B.goldIds.add(id);}
   B.tint=null;if(B.mask&&B.shape){const g={};for(let i=0;i<B.mask.length;i++){if(!B.mask[i])continue;const col=B.shape.pal?B.shape.pal[B.region[i]]:B.shape.tint;(g[col]||(g[col]=[])).push(i);}B.tint=g;}
   occ=new Int16Array(B.cols*B.rows).fill(-1);
   for(const a of B.arrows){a.alive=true;a.removing=false;a.gone=false;a.wrong=false;a.anim=null;a.flash=0;
@@ -3282,7 +3293,6 @@ function draw(now){
   ctx.setTransform(geo.dpr,0,0,geo.dpr,0,0);ctx.clearRect(0,0,geo.w,geo.h);
   ctx.lineCap='round';ctx.lineJoin='round';
   drawDots(th);
-  if(B.ball)drawBallBox(th);
   if(S.path)drawPaths(th);
   for(const a of B.arrows){
     if(a.gone)continue;
@@ -3294,6 +3304,7 @@ function draw(now){
     if(!a.wrong&&B.goldIds&&B.goldIds.has(a.id)){ctx.globalAlpha=th.dark?0.4:0.5;strokeArrow(a,s,'#ffe08a',w*2.6);ctx.globalAlpha=1;} // 여러 색 사이에서도 금색 화살이 보이도록 빛무리
     strokeArrow(a,s,col,w);
   }
+  if(B.ball)drawBallBox(th); // 황금박스는 화살 위에: 화살이 박스 밑으로 지나감
 }
 
 // 색칠 그림의 색이 바탕에 묻히지 않도록 살짝 보정
