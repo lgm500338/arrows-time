@@ -586,16 +586,41 @@ const CURVE_AVGLEN=[[26,5.6],[300,6.3],[1000,7],[3000,7.5]]; // 빈칸 포함 �
 const CURVE_LONG=[[26,7],[300,9],[1000,11],[3000,12]];
 const MAX_COLS=48,MAX_ROWS=74; // 화면을 꽉 채울 때 한 칸이 너무 작아지지 않는 한도
 // 틀 모양: 동그라미·네모·세모·오각형·별 / 번호가 오를수록 틀과 구슬이 작아져서 화살이 더 많이 들어감
-const BALL_SHAPES=['circle','square','triangle','pentagon','star'];
+const BALL_SHAPES=['circle','square','triangle','pentagon','star','hexagon','heart','diamond','octagon'];
 function ballPoly(shape,R){const P=[];
   if(shape==='triangle'){for(let k=0;k<3;k++){const a=-Math.PI/2+k*2*Math.PI/3;P.push([Math.cos(a)*R*1.25,Math.sin(a)*R*1.25+R*0.18]);}}
   else if(shape==='pentagon'){for(let k=0;k<5;k++){const a=-Math.PI/2+k*2*Math.PI/5;P.push([Math.cos(a)*R*1.06,Math.sin(a)*R*1.06+R*0.05]);}}
   else if(shape==='star'){for(let k=0;k<10;k++){const a=-Math.PI/2+k*Math.PI/5,rr=k%2?R*0.6:R*1.22;P.push([Math.cos(a)*rr,Math.sin(a)*rr+R*0.08]);}}
+  else if(shape==='hexagon'){for(let k=0;k<6;k++){const a=k*Math.PI/3;P.push([Math.cos(a)*R*1.08,Math.sin(a)*R*1.08]);}}
+  else if(shape==='octagon'){for(let k=0;k<8;k++){const a=Math.PI/8+k*Math.PI/4;P.push([Math.cos(a)*R*1.04,Math.sin(a)*R*1.04]);}}
+  else if(shape==='diamond'){P.push([0,-R*1.3],[R*1.05,0],[0,R*1.3],[-R*1.05,0]);}
+  else if(shape==='heart'){for(let k=0;k<36;k++){const t=k/36*2*Math.PI,x=16*Math.pow(Math.sin(t),3),y=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));P.push([x/16*R*1.18,(y+2.5)/16*R*1.18]);}}
   return P;}
 const pip=(P,x,y)=>{let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const[xi,yi]=P[i],[xj,yj]=P[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)c=!c;}return c;};
 function mkBox(shape,cx,cy,R){const poly=ballPoly(shape,R),hw=R*0.88,hh=hw*1.15;
   const inBox=(x,y)=>{const px=x+.5-cx,py=y+.5-cy;return shape==='circle'?Math.hypot(px,py)<R:shape==='square'?(Math.abs(px)<hw&&Math.abs(py)<hh):pip(poly,px,py);};
   return{shape,cx,cy,rad:R,hw,hh,poly,inBox};}
+// 글자·그림 속 빈 구멍(ㅇ 안쪽, 창문 등)을 찾아 그 모양에 맞는 틀을 만듦: 둥근 구멍=동그라미, 네모난 구멍=네모
+function holeBoxes(mask,cols,rows){const seen=new Uint8Array(cols*rows),st=[];
+  const push=k=>{if(!seen[k]&&!mask[k]){seen[k]=1;st.push(k);}};
+  for(let x=0;x<cols;x++){push(x);push((rows-1)*cols+x);}for(let y=0;y<rows;y++){push(y*cols);push(y*cols+cols-1);}
+  const nb=k=>{const x=k%cols,y=(k/cols)|0,o=[];if(x>0)o.push(k-1);if(x<cols-1)o.push(k+1);if(y>0)o.push(k-cols);if(y<rows-1)o.push(k+cols);return o;};
+  while(st.length){const k=st.pop();for(const n of nb(k))push(n);}
+  const out=[];
+  for(let k0=0;k0<cols*rows;k0++){if(seen[k0]||mask[k0])continue;const cells=[];const q=[k0];seen[k0]=1;
+    while(q.length){const k=q.pop();cells.push(k);for(const n of nb(k))if(!seen[n]&&!mask[n]){seen[n]=1;q.push(n);}}
+    let x0=1e9,y0=1e9,x1=-1,y1=-1;const inH=new Set(cells);for(const k of cells){const x=k%cols,y=(k/cols)|0;x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}
+    const w=x1-x0+1,h=y1-y0+1,fill=cells.length/(w*h),cx=(x0+x1+1)/2,cy=(y0+y1+1)/2;
+    let rin=1e9;for(let y=y0-1;y<=y1+1;y++)for(let x=x0-1;x<=x1+1;x++){if(inH.has(y*cols+x))continue;rin=Math.min(rin,Math.hypot(x+.5-cx,y+.5-cy)-0.5);}
+    const cand=[];
+    if(fill>0.82&&Math.min(w,h)>=4)cand.push({shape:'square',cx,cy,rad:Math.max(w,h)/2,hw:w/2,hh:h/2,poly:[]});
+    const asp=w/h;if(rin>=1.9&&asp>0.75&&asp<1.33){const R=rin+0.5;cand.push({shape:'circle',cx,cy,rad:R,hw:R*0.88,hh:R,poly:[]});}
+    for(const k of [1,0.93,0.86,0.79,0.72,0.65]){const rx=w/2*k,ry=h/2*k;if(Math.min(rx,ry)<1.7)break;const P=[];for(let i=0;i<32;i++){const t=i/32*2*Math.PI;P.push([Math.cos(t)*rx,Math.sin(t)*ry]);}
+      cand.push({shape:'oval',cx,cy,rad:Math.max(rx,ry),hw:rx,hh:ry,poly:P});} // 길쭉한 구멍(ㅎ의 ㅇ 등)은 타원 틀
+    for(const b of cand){const wall=new Uint8Array(cols*rows);let bad=0;
+      for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const px=x+.5-cx,py=y+.5-cy,on=b.shape==='circle'?Math.hypot(px,py)<b.rad:b.shape==='oval'?pip(b.poly,px,py):(Math.abs(px)<b.hw&&Math.abs(py)<b.hh);if(on){wall[y*cols+x]=1;if(mask[y*cols+x])bad++;}}
+      if(bad)continue;b.wall=wall;b.size=cells.length;out.push(b);break;}}
+  return out.sort((a,b)=>b.size-a.size).slice(0,3);}
 const ballF=no=>PW([[35,0.34],[600,0.29],[1500,0.24],[3000,0.2],[5000,0.18]],no);
 const ballN=(no,b)=>{let n=Math.min(30,10+Math.floor(no/100));return Math.max(6,Math.min(n,Math.floor(ballArea(b)/1.8)));};
 function ballBoard(no,rand){
@@ -635,6 +660,10 @@ function bigBoard(no,rand,sh,daily){
     const Rb=Math.max(2.4,sh.hole*cols*0.92),bx=mkBox('circle',cols/2,rows/2,Rb),m0=mask.slice();wall=new Uint8Array(cols*rows);
     for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)if(bx.inBox(x,y)){wall[y*cols+x]=1;mask[y*cols+x]=0;}
     ball={shape:'circle',cx:bx.cx,cy:bx.cy,rad:bx.rad,hw:bx.hw,hh:bx.hh,poly:bx.poly,wall};ball.n=ballN(no,ball);}
+  else if(mask&&sh&&!sh.flag&&!daily&&isBallNo(no)&&holeBoxes(mask,cols,rows).length){
+    const hb=holeBoxes(mask,cols,rows);wall=new Uint8Array(cols*rows);
+    for(const b of hb){for(let k=0;k<wall.length;k++)if(b.wall[k])wall[k]=1;b.n=ballN(no,b);}
+    for(const b of hb)b.wall=wall;ball=hb[0];ball.more=hb.slice(1);}
   else if(mask&&sh&&!sh.flag&&!daily&&isBallNo(no)){
     const Rb=Math.max(2.6,cols*ballF(no)*0.72),shape=BALL_SHAPES[hashNo(no*7+1)%BALL_SHAPES.length];let best=null,bs=0.55;
     for(let y=Math.ceil(Rb);y<=rows-Rb;y++)for(let x=Math.ceil(Rb);x<=cols-Rb;x++){let a=0,an=0,d=0,dn=0;
@@ -3098,7 +3127,8 @@ function boxPath(c2,b,c,inset){const X=geo.ox+b.cx*c,Y=geo.oy+b.cy*c;c2.beginPat
   if(b.shape==='circle')c2.arc(X,Y,b.rad*c-inset,0,6.2832);
   else if(b.poly&&b.poly.length){const R0=Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1]))),k=Math.max(0.2,1-inset/(R0*c)*1.35);b.poly.forEach((p,i)=>{const x=X+p[0]*c*k,y=Y+p[1]*c*k;i?c2.lineTo(x,y):c2.moveTo(x,y);});c2.closePath();}
   else{const w=b.hw*c-inset,h=b.hh*c-inset,q=Math.min(w,h)*0.22;c2.moveTo(X-w+q,Y-h);c2.arcTo(X+w,Y-h,X+w,Y+h,q);c2.arcTo(X+w,Y+h,X-w,Y+h,q);c2.arcTo(X-w,Y+h,X-w,Y-h,q);c2.arcTo(X-w,Y-h,X+w,Y-h,q);c2.closePath();}}
-function drawBallBox(th){const b=B.ball;if(b.open&&performance.now()>=b.open.t0)return;const c=geo.cell,X=geo.ox+b.cx*c,Y=geo.oy+b.cy*c,R=(b.shape==='circle'?b.rad:Math.max(b.hw,b.hh))*c;
+function drawBallBox(th){for(const b of B.boxes)drawBoxOne(th,b);}
+function drawBoxOne(th,b){if(b.open&&performance.now()>=b.open.t0)return;const c=geo.cell,X=geo.ox+b.cx*c,Y=geo.oy+b.cy*c,R=(b.shape==='circle'?b.rad:Math.max(b.hw,b.hh))*c;
   boxPath(ctx,b,c,c*0.45);const bg=ctx.createRadialGradient(X,Y-R*0.3,R*0.1,X,Y,R*1.05);bg.addColorStop(0,'#1a2b52');bg.addColorStop(.6,'#0d1730');bg.addColorStop(1,'#050a17');ctx.fillStyle=bg;ctx.fill();
   const ring=ctx.createLinearGradient(X-R,Y-R,X+R,Y+R);ring.addColorStop(0,'#fff3c4');ring.addColorStop(.3,'#c8963e');ring.addColorStop(.5,'#fff6d6');ring.addColorStop(.72,'#d4a64e');ring.addColorStop(1,'#8a6420');
   ctx.lineWidth=Math.max(2.5,c*0.32);ctx.lineJoin='round';ctx.strokeStyle=ring;ctx.stroke();
@@ -3109,24 +3139,24 @@ function ballArea(b){if(b.shape==='circle')return Math.PI*b.rad*b.rad;if(b.shape
 function ballInside(b,x,y,m){if(b.shape==='circle')return Math.hypot(x,y)<b.rad-m;if(b.shape==='square')return Math.abs(x)<b.hw-m&&Math.abs(y)<b.hh-m;
   if(!pip(b.poly,x,y))return false;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++){if(segD(b.poly[j],b.poly[i],x,y).d<m)return false;}return true;}
 function segD(A,Bp,x,y){const dx=Bp[0]-A[0],dy=Bp[1]-A[1],t=Math.max(0,Math.min(1,((x-A[0])*dx+(y-A[1])*dy)/(dx*dx+dy*dy||1))),px=A[0]+dx*t,py=A[1]+dy*t;return{d:Math.hypot(x-px,y-py),px,py};}
-function ballInit(){const b=B.ball;BL.balls=[];if(!b)return;const r0=mulberry32((B.no||1)*977+3),W=(b.shape==='circle'?b.rad:b.shape==='square'?Math.max(b.hw,b.hh):Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1]))));
+function ballInit(){BL.balls=[];if(!B.ball)return;const r0=mulberry32((B.no||1)*977+3);
+  B.boxes.forEach((b,bi)=>{const W=(b.shape==='circle'?b.rad:b.shape==='square'?Math.max(b.hw,b.hh):Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1])))),mine=[];
   let br=Math.max(0.36,Math.min(1.6,Math.sqrt(0.15*ballArea(b)/(b.n*Math.PI))));
   if(b.poly&&b.poly.length){let inr=1e9;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++)inr=Math.min(inr,segD(b.poly[j],b.poly[i],0,0).d);br=Math.min(br,Math.max(0.36,(inr-0.7)*0.4));}
-  for(let i=0;i<b.n;i++){let x=0,y=0,ok=false;for(let t=0;t<900&&!ok;t++){x=(r0()*2-1)*W;y=(r0()*2-1)*W;ok=ballInside(b,x,y,br+0.7)&&BL.balls.every(q=>Math.hypot(q.x-x,q.y-y)>q.r+br);}
+  for(let i=0;i<b.n;i++){let x=0,y=0,ok=false;for(let t=0;t<900&&!ok;t++){x=(r0()*2-1)*W;y=(r0()*2-1)*W;ok=ballInside(b,x,y,br+0.7)&&mine.every(q=>Math.hypot(q.x-x,q.y-y)>q.r+br);}
     if(!ok){x=(r0()-.5)*0.4;y=(r0()-.5)*0.4;}
-    BL.balls.push({x,y,vx:(r0()-.5)*6,vy:(r0()-.5)*6,r:br*(0.9+r0()*0.2),ph:r0()*6.28,spin:0,fly:null});}
+    const p={bi,x,y,vx:(r0()-.5)*6,vy:(r0()-.5)*6,r:br*(0.9+r0()*0.2),ph:r0()*6.28,spin:0,fly:null};mine.push(p);BL.balls.push(p);}});
   BL.flyT0=0;BL.last=performance.now();ballKick();}
 function ballKick(){if(!BL.raf&&B&&B.ball)BL.raf=requestAnimationFrame(ballFrame);}
-function ballStep(dt,now){const b=B.ball,g=9,ga=now/1500,gx=Math.sin(ga)*g+Math.sin(now/530)*3,gy=Math.cos(ga*0.8)*g*0.6+2.5;
+function ballStep(dt,now){const g=9,ga=now/1500,gx=Math.sin(ga)*g+Math.sin(now/530)*3,gy=Math.cos(ga*0.8)*g*0.6+2.5;
   for(const p of BL.balls){if(!p.fly&&Math.random()<dt*0.9){p.vx+=(Math.random()-.5)*7;p.vy-=2+Math.random()*4;}} // 가끔 톡톡 튐 // 천천히 기울어지는 바닥을 따라 굴러다님
-  const inner=b.shape==='circle'?b.rad-0.62:null,iw=b.hw-0.62,ih=b.hh-0.62;
-  for(const p of BL.balls){if(p.fly)continue;p.vx+=gx*dt;p.vy+=gy*dt;p.vx*=0.995;p.vy*=0.995;p.x+=p.vx*dt;p.y+=p.vy*dt;p.spin+=Math.hypot(p.vx,p.vy)*dt/p.r;
+  for(const p of BL.balls){if(p.fly)continue;const b=B.boxes[p.bi],inner=b.shape==='circle'?b.rad-0.62:null,iw=b.hw-0.62,ih=b.hh-0.62;p.vx+=gx*dt;p.vy+=gy*dt;p.vx*=0.995;p.vy*=0.995;p.x+=p.vx*dt;p.y+=p.vy*dt;p.spin+=Math.hypot(p.vx,p.vy)*dt/p.r;
     if(inner){const d=Math.hypot(p.x,p.y),lim=inner-p.r;if(d>lim){const nx=p.x/d,ny=p.y/d;p.x=nx*lim;p.y=ny*lim;const vn=p.vx*nx+p.vy*ny;if(vn>0){p.vx-=1.55*vn*nx;p.vy-=1.55*vn*ny;}}}
     else if(b.shape==='square'){if(Math.abs(p.x)>iw-p.r){p.x=Math.sign(p.x)*(iw-p.r);p.vx*=-0.55;}if(Math.abs(p.y)>ih-p.r){p.y=Math.sign(p.y)*(ih-p.r);p.vy*=-0.55;}}
     else{const P=b.poly,pad=p.r+0.62;
       if(!pip(P,p.x,p.y)){p.x*=0.9;p.y*=0.9;p.vx*=-0.5;p.vy*=-0.5;}
       for(let i=0,j=P.length-1;i<P.length;j=i++){const q=segD(P[j],P[i],p.x,p.y);if(q.d<pad&&q.d>1e-6){const nx=(p.x-q.px)/q.d,ny=(p.y-q.py)/q.d;p.x=q.px+nx*pad;p.y=q.py+ny*pad;const vn=p.vx*nx+p.vy*ny;if(vn<0){p.vx-=1.55*vn*nx;p.vy-=1.55*vn*ny;}}}}}
-  for(let i=0;i<BL.balls.length;i++)for(let j=i+1;j<BL.balls.length;j++){const a=BL.balls[i],q=BL.balls[j];if(a.fly||q.fly)continue;const dx=q.x-a.x,dy=q.y-a.y,d=Math.hypot(dx,dy)||1e-3,m=a.r+q.r;
+  for(let i=0;i<BL.balls.length;i++)for(let j=i+1;j<BL.balls.length;j++){const a=BL.balls[i],q=BL.balls[j];if(a.fly||q.fly||a.bi!==q.bi)continue;const dx=q.x-a.x,dy=q.y-a.y,d=Math.hypot(dx,dy)||1e-3,m=a.r+q.r;
     if(d<m){const nx=dx/d,ny=dy/d,o=(m-d)/2;a.x-=nx*o;a.y-=ny*o;q.x+=nx*o;q.y+=ny*o;const rv=(q.vx-a.vx)*nx+(q.vy-a.vy)*ny;if(rv<0){const k=-0.9*rv;a.vx-=k*nx;a.vy-=k*ny;q.vx+=k*nx;q.vy+=k*ny;}}}}
 function drawBall(c2,x,y,r,p,now,glowK){
   const pu=0.8+0.2*Math.sin(now/260+p.ph),gr=r*2.8,gl=c2.createRadialGradient(x,y,0,x,y,gr);gl.addColorStop(0,'rgba(255,225,140,'+(0.6*glowK*pu)+')');gl.addColorStop(1,'rgba(255,215,120,0)');c2.fillStyle=gl;c2.beginPath();c2.arc(x,y,gr,0,6.2832);c2.fill();
@@ -3140,26 +3170,26 @@ function drawBall(c2,x,y,r,p,now,glowK){
     c2.moveTo(sx,sy-L);c2.lineTo(sx+L*.18,sy-L*.18);c2.lineTo(sx+L,sy);c2.lineTo(sx+L*.18,sy+L*.18);c2.lineTo(sx,sy+L);c2.lineTo(sx-L*.18,sy+L*.18);c2.lineTo(sx-L,sy);c2.lineTo(sx-L*.18,sy-L*.18);c2.closePath();c2.fill();}}
 function ballFrame(now){BL.raf=0;const cv2=BL.cv;if(!cv2||!B||!B.ball||$('#game').hidden){if(cv2)BL.cx.clearRect(0,0,cv2.width,cv2.height);return;}
   const dt=Math.min(0.04,(now-BL.last)/1000);BL.last=now;ballStep(dt,now);
-  const c2=BL.cx,c=geo.cell,b=B.ball;c2.setTransform(geo.dpr,0,0,geo.dpr,0,0);c2.clearRect(0,0,geo.w,geo.h);
-  const opened=b.open&&now>=b.open.t0;
-  c2.save();if(!opened){boxPath(c2,b,c,c*0.62);c2.clip();}
-  let alive=0;
-  for(const p of BL.balls){if(p.fly)continue;alive++;drawBall(c2,geo.ox+(b.cx+p.x)*c,geo.oy+(b.cy+p.y)*c,p.r*c,p,now,1);}
-  c2.restore();
-  if(b.open){drawBurst(c2,now);if(now-b.open.t0<BURST_MS*1.6)alive++;}
+  const c2=BL.cx,c=geo.cell;c2.setTransform(geo.dpr,0,0,geo.dpr,0,0);c2.clearRect(0,0,geo.w,geo.h);
+  const opened=B.ball.open&&now>=B.ball.open.t0;let alive=0;
+  B.boxes.forEach((b,bi)=>{c2.save();if(!opened){boxPath(c2,b,c,c*0.62);c2.clip();}
+    for(const p of BL.balls){if(p.fly||p.bi!==bi)continue;alive++;drawBall(c2,geo.ox+(b.cx+p.x)*c,geo.oy+(b.cy+p.y)*c,p.r*c,p,now,1);}
+    c2.restore();});
+  if(B.ball.open){drawBurst(c2,now);if(now-B.ball.open.t0<BURST_MS*1.6)alive++;}
   // 구출: 하나씩 위로 날아감
-  for(const p of BL.balls){if(!p.fly)continue;const t=(now-p.fly.t0)/650;if(t<0){alive++;drawBall(c2,geo.ox+(b.cx+p.x)*c,geo.oy+(b.cy+p.y)*c,p.r*c*(1+0.15*Math.sin(now/90)),p,now,1.6);continue;}
+  for(const p of BL.balls){if(!p.fly)continue;const b=B.boxes[p.bi],t=(now-p.fly.t0)/650;if(t<0){alive++;drawBall(c2,geo.ox+(b.cx+p.x)*c,geo.oy+(b.cy+p.y)*c,p.r*c*(1+0.15*Math.sin(now/90)),p,now,1.6);continue;}
     if(t>=1){if(!p.fly.done){p.fly.done=true;Snd.coin();}continue;}alive++;
     const sx=geo.ox+(b.cx+p.x)*c,sy=geo.oy+(b.cy+p.y)*c,ex=geo.w/2,ey=-40,e=t*t,x=sx+(ex-sx)*e,y=sy+(ey-sy)*e-Math.sin(Math.PI*t)*60;
     drawBall(c2,x,y,p.r*c*(1.25-0.5*t),p,now,1.8);}
   if(alive||BL.balls.some(p=>p.fly&&!p.fly.done))ballKick();}
 const BURST_MS=700;
-function ballRelease(now){const b=B.ball;b.open={t0:now};setTimeout(()=>Snd.burst(),Math.max(0,now-performance.now()));
-  const r0=mulberry32(77);b.sparks=[...Array(36)].map(()=>{const a=r0()*6.283,v=4+r0()*9;return{a,v,s:0.12+r0()*0.22,ph:r0()*6.28};});
-  BL.balls.forEach((p,i)=>{p.fly={t0:now+BURST_MS-80+i*120,done:false};});ballKick();
+function ballRelease(now){const b=B.ball;for(const x of B.boxes)x.open={t0:now};setTimeout(()=>Snd.burst(),Math.max(0,now-performance.now()));
+  const r0=mulberry32(77);for(const x of B.boxes)x.sparks=[...Array(36)].map(()=>{const a=r0()*6.283,v=4+r0()*9;return{a,v,s:0.12+r0()*0.22,ph:r0()*6.28};});
+  BL.balls.forEach((p,i)=>{p.fly={t0:now+BURST_MS-80+i*(BL.balls.length>20?60:120),done:false};});ballKick();
   setTimeout(()=>{ // 틀이 열린 자리도 점으로 채워서 금빛 물결이 지나가게
     for(let k=0;k<b.wall.length;k++)if(b.wall[k])B.mask[k]=1;kick();},Math.max(0,now-performance.now())+120);}
-function drawBurst(c2,now){const b=B.ball,o=b.open;if(!o)return;const t=(now-o.t0)/BURST_MS;if(t<0||t>1.6)return;
+function drawBurst(c2,now){for(const b of B.boxes)drawBurstOne(c2,now,b);}
+function drawBurstOne(c2,now,b){const o=b.open;if(!o)return;const t=(now-o.t0)/BURST_MS;if(t<0||t>1.6)return;
   const c=geo.cell,X=geo.ox+b.cx*c,Y=geo.oy+b.cy*c,R=(b.shape==='circle'?b.rad:b.shape==='square'?Math.max(b.hw,b.hh):Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1]))))*c;
   c2.save();
   if(t<1){ // 틀이 금빛으로 부풀며 사라짐
@@ -3220,6 +3250,7 @@ function pickGold(k,rg){const A=B.arrows,C=B.cols,R=B.rows,o=new Int16Array(C*R)
   return out;}
 function loadStage(){
   const T=tgt();B=buildBoard(T.lv,T.st,T.daily);B.lv=T.lv;B.st=T.st;B.no=DC?null:toNo(T.lv,T.st);B.key=modeKey();B.palI=hashNo((B.no||0)*31+(DC?dayNum():0)+17)>>>3;B.mono=!DC&&(B.no||0)>=20&&!(B.shape&&B.shape.pal)&&hashNo((B.no||0)*17+3)%6===0;B.goldMix=!DC&&(B.no||0)>=30;B.goldIds=new Set();if(B.goldMix){const k=Math.max(1,Math.min(5,Math.floor((B.no||0)/1000))),rg=mulberry32((B.no||0)*131+7);for(const id of pickGold(k,rg))B.goldIds.add(id);}
+  B.boxes=B.ball?[B.ball].concat(B.ball.more||[]):[];
   B.tint=null;if(B.mask&&B.shape){const g={};for(let i=0;i<B.mask.length;i++){if(!B.mask[i])continue;const col=B.shape.pal?B.shape.pal[B.region[i]]:B.shape.tint;(g[col]||(g[col]=[])).push(i);}B.tint=g;}
   occ=new Int16Array(B.cols*B.rows).fill(-1);
   for(const a of B.arrows){a.alive=true;a.removing=false;a.gone=false;a.wrong=false;a.anim=null;a.flash=0;
@@ -3442,7 +3473,7 @@ function finishBoard(now){
       const th=THEMES[S.theme],cols=['#fff3c4','#f6d98b','#e8c47a','#d4a64e','#f9e29c'];
       let md=0;const m=B.mask;for(let y=0;y<B.rows;y++)for(let x=0;x<B.cols;x++)if(!m||m[y*B.cols+x])md=Math.max(md,Math.hypot(x-B.cols/2,y-B.rows/2));
       clearFx={t0:now+520,dur:2900,cx:(B.cols-1)/2,cy:(B.rows-1)/2,md:md||1,cols:cols.length?cols:[th.dot]};kick();
-      if(B.ball){ballRelease(now+450);kick();setTimeout(onClear,Math.max(1700,450+BURST_MS+B.ball.n*120+800));}else setTimeout(onClear,1650);
+      if(B.ball){ballRelease(now+450);kick();setTimeout(onClear,Math.max(1700,450+BURST_MS+BL.balls.length*(BL.balls.length>20?60:120)+800));}else setTimeout(onClear,1650);
 }
 function tapArrow(a){
   startT();
@@ -3451,7 +3482,7 @@ function tapArrow(a){
   const now=performance.now();
   if(blocker<0){ // 성공
     launchArrow(a,now,null);
-    if(B.goldIds&&B.goldIds.has(a.id))goldChain(a);
+    if(B.goldIds&&B.goldIds.has(a.id)&&!a.wrong)goldChain(a); // 한 번 막혔던 황금화살은 보너스 없음
   }else{ // 실패
     a.wrong=true;a.anim={type:'bump',t0:now,s:0,d:k-1+0.32,out:0.07+0.03*k};
     B.arrows[blocker].flash=now+660;
@@ -3522,7 +3553,7 @@ function onClear(){
   // 골드바: 이 판에서 찾은 골드바 + 완벽 클리어 보너스 1개 → 내 금고 (다시 하는 판은 쌓이지 않음)
   if(B.ball){const el=$('#earnLine');
     if(RP)el.textContent=tr('ballReplay');
-    else{const tot=LS.get('am_balls',0)+B.ball.n;LS.set('am_balls',tot);el.innerHTML=BALL_SVG+tr('ballGet',B.ball.n,tot.toLocaleString());}
+    else{const bn=B.boxes.reduce((s,b)=>s+b.n,0),tot=LS.get('am_balls',0)+bn;LS.set('am_balls',tot);el.innerHTML=BALL_SVG+tr('ballGet',bn,tot.toLocaleString());}
     earned=true;}
   if(DC){const dd=LS.get('am_daily',{});dd[todayKey()]=lostStar?1:2;LS.set('am_daily',dd);}
   const no=B.no,levelDone=!RP&&!DC&&no%100===0;
