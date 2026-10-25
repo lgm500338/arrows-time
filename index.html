@@ -600,6 +600,37 @@ const pip=(P,x,y)=>{let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const
 function mkBox(shape,cx,cy,R){const poly=ballPoly(shape,R),hw=R*0.88,hh=hw*1.15;
   const inBox=(x,y)=>{const px=x+.5-cx,py=y+.5-cy;return shape==='circle'?Math.hypot(px,py)<R:shape==='square'?(Math.abs(px)<hw&&Math.abs(py)<hh):pip(poly,px,py);};
   return{shape,cx,cy,rad:R,hw,hh,poly,inBox};}
+// 1~3칸짜리로 떨어진 부스러기 칸 지우기 (그림 판)
+function despeck(mask,cols,rows){const seen=new Uint8Array(cols*rows);
+  for(let k0=0;k0<mask.length;k0++){if(!mask[k0]||seen[k0])continue;const comp=[k0],q=[k0];seen[k0]=1;
+    while(q.length){const k=q.pop(),x=k%cols,y=(k/cols)|0;for(const n of [x>0?k-1:-1,x<cols-1?k+1:-1,y>0?k-cols:-1,y<rows-1?k+cols:-1])if(n>=0&&mask[n]&&!seen[n]){seen[n]=1;comp.push(n);q.push(n);}}
+    if(comp.length<=3)for(const k of comp)mask[k]=0;}}
+// 판 바깥과 이어지지 않은 빈칸 덩어리(구멍)들
+function findHoles(mask,cols,rows){const seen=new Uint8Array(cols*rows),st=[];const push=k=>{if(!seen[k]&&!mask[k]){seen[k]=1;st.push(k);}};
+  for(let x=0;x<cols;x++){push(x);push((rows-1)*cols+x);}for(let y=0;y<rows;y++){push(y*cols);push(y*cols+cols-1);}
+  const nb=k=>{const x=k%cols,y=(k/cols)|0;return[x>0?k-1:-1,x<cols-1?k+1:-1,y>0?k-cols:-1,y<rows-1?k+cols:-1];};
+  while(st.length){const k=st.pop();for(const n of nb(k))if(n>=0)push(n);}
+  const out=[];for(let k0=0;k0<cols*rows;k0++){if(seen[k0]||mask[k0])continue;const cells=[k0],q=[k0];seen[k0]=1;
+    while(q.length){const k=q.pop();for(const n of nb(k))if(n>=0&&!seen[n]&&!mask[n]){seen[n]=1;cells.push(n);q.push(n);}}out.push(cells);}
+  return out;}
+// 구멍 안에서 가장 큰 동그라미/네모 자리를 찾아 틀을 만듦 (잔선이 조금 튀어나온 큰 구멍도 됨)
+function fitHoleBox(cells,cols,rows){const H=new Set(cells);let x0=1e9,y0=1e9,x1=-1,y1=-1;
+  for(const k of cells){const x=k%cols,y=(k/cols)|0;x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}
+  const w=x1-x0+1,h=y1-y0+1,fill=cells.length/(w*h);
+  // 가장 큰 네모 (히스토그램 방식)
+  let best=null,ht=new Array(w).fill(0);
+  for(let y=y0;y<=y1;y++){for(let x=x0;x<=x1;x++)ht[x-x0]=H.has(y*cols+x)?ht[x-x0]+1:0;
+    for(let i=0;i<w;i++){let mn=1e9;for(let j=i;j<w;j++){mn=Math.min(mn,ht[j]);if(!mn)break;const ww=j-i+1,hh=mn,a=ww*hh;if(Math.min(ww,hh)>=4&&Math.max(ww,hh)<=Math.min(ww,hh)*2.4&&(!best||a>best.a))best={a,x0:x0+i,x1:x0+j,y0:y-hh+1,y1:y};}}}
+  // 가장 큰 동그라미 (구멍 밖 칸까지의 거리)
+  const edge=[];for(let y=y0-1;y<=y1+1;y++)for(let x=x0-1;x<=x1+1;x++){if(!H.has(y*cols+x))edge.push([x+.5,y+.5]);}
+  let cb=null;for(const k of cells){const cx=k%cols+.5,cy=((k/cols)|0)+.5;let d=1e9;for(const [ex,ey] of edge){const q=Math.hypot(ex-cx,ey-cy);if(q<d){d=q;if(cb&&d<=cb.R)break;}}if(!cb||d>cb.R)cb={cx,cy,R:d};}
+  const circ=cb&&cb.R>=2.4?{shape:'circle',cx:cb.cx,cy:cb.cy,rad:cb.R,hw:cb.R*0.88,hh:cb.R,poly:[]}:null;
+  const rect=best?{shape:'square',cx:(best.x0+best.x1+1)/2,cy:(best.y0+best.y1+1)/2,hw:(best.x1-best.x0+1)/2,hh:(best.y1-best.y0+1)/2,poly:[]}:null;
+  if(rect)rect.rad=Math.max(rect.hw,rect.hh);
+  let b=null;if(rect&&(fill>0.8||!circ||4*rect.hw*rect.hh>Math.PI*circ.rad*circ.rad*1.35))b=rect;else b=circ;
+  if(!b)return null;const wall=new Uint8Array(cols*rows);
+  for(const k of cells){const px=k%cols+.5-b.cx,py=((k/cols)|0)+.5-b.cy;if(b.shape==='circle'?Math.hypot(px,py)<b.rad:(Math.abs(px)<b.hw&&Math.abs(py)<b.hh))wall[k]=1;}
+  b.wall=wall;b.size=cells.length;b.area=b.shape==='circle'?Math.PI*b.rad*b.rad:4*b.hw*b.hh;return b;}
 // 글자·그림 속 빈 구멍(ㅇ 안쪽, 창문 등)을 찾아 그 모양에 맞는 틀을 만듦: 둥근 구멍=동그라미, 네모난 구멍=네모
 function holeBoxes(mask,cols,rows){const seen=new Uint8Array(cols*rows),st=[];
   const push=k=>{if(!seen[k]&&!mask[k]){seen[k]=1;st.push(k);}};
@@ -649,19 +680,22 @@ function bigBoard(no,rand,sh,daily){
     const asp=Math.min(2.3,sh.asp),R=c=>Math.max(6,Math.round(c*asp));
     // 모양 안의 칸 수가 목표에 맞도록 크기를 한 번 재고 맞춤
     let c=Math.min(fitC(asp),Math.max(6,Math.round(Math.sqrt(D/asp)))),r=rasterize(sh,c,R(c));
-    const c2=Math.min(fitC(asp),Math.max(6,Math.round(c*Math.sqrt(D/Math.max(1,count(r.mask))))));
+    const fillPic=!sh.text&&!sh.bmText&&!sh.flag,area=m=>{let n=count(m);if(fillPic&&!r.region)for(const h of findHoles(m,c,R(c)))if(h.length>=2)n+=h.length;return n;}; // 속을 채울 그림은 채운 넓이로 크기를 맞춤
+    const c2=Math.min(fitC(asp),Math.max(6,Math.round(c*Math.sqrt(D/Math.max(1,area(r.mask))))));
     if(c2!==c){c=c2;r=rasterize(sh,c,R(c));}
     cols=c;rows=R(c);mask=r.mask;region=r.region;if(!region)mask=thicken(mask,cols,rows);
     if(count(mask)<24){mask=null;region=null;sh=null;}
+    if(mask&&!region&&!sh.text&&!sh.bmText)despeck(mask,cols,rows);
   }
+  let inner=null;
   // 황금볼 판이면: 모양 안에서 둘레가 화살로 가장 잘 둘러싸이는 자리에 틀을 넣음
   let ball=null,wall=null;
   if(mask&&sh&&sh.hole&&!daily){ // 고리 모양: 가운데 구멍에 꼭 맞는 틀
     const Rb=Math.max(2.4,sh.hole*cols*0.92),bx=mkBox('circle',cols/2,rows/2,Rb),m0=mask.slice();wall=new Uint8Array(cols*rows);
     for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)if(bx.inBox(x,y)){wall[y*cols+x]=1;mask[y*cols+x]=0;}
     ball={shape:'circle',cx:bx.cx,cy:bx.cy,rad:bx.rad,hw:bx.hw,hh:bx.hh,poly:bx.poly,wall};ball.n=ballN(no,ball);}
-  else if(mask&&sh&&!sh.flag&&!daily&&isBallNo(no)&&holeBoxes(mask,cols,rows).length){
-    const hb=holeBoxes(mask,cols,rows);wall=new Uint8Array(cols*rows);
+  else if(mask&&sh&&!sh.flag&&!daily&&isBallNo(no)&&findHoles(mask,cols,rows).map(h=>fitHoleBox(h,cols,rows)).some(Boolean)){
+    const hb=findHoles(mask,cols,rows).map(h=>fitHoleBox(h,cols,rows)).filter(Boolean).sort((p,q)=>q.area-p.area).slice(0,3);wall=new Uint8Array(cols*rows);
     for(const b of hb){for(let k=0;k<wall.length;k++)if(b.wall[k])wall[k]=1;b.n=ballN(no,b);}
     for(const b of hb)b.wall=wall;ball=hb[0];ball.more=hb.slice(1);}
   else if(mask&&sh&&!sh.flag&&!daily&&isBallNo(no)){
@@ -674,12 +708,15 @@ function bigBoard(no,rand,sh,daily){
       for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)if(bx.inBox(x,y)){wall[y*cols+x]=1;if(mask[y*cols+x])hit++;mask[y*cols+x]=0;}
       if(hit>=4){ball={shape,cx:bx.cx,cy:bx.cy,rad:bx.rad,hw:bx.hw,hh:bx.hh,poly:bx.poly,wall};ball.n=ballN(no,ball);}else{mask=m0;wall=null;}}}
   if(!ball&&!daily&&isBallNo(no))return ballBoard(no,rand);
+  if(mask&&sh&&!region&&!sh.text&&!sh.bmText&&!sh.flag){ // 윤곽선 그림: 속의 빈 면을 연한 화살로 채움 (황금박스 자리는 빼고)
+    for(const h of findHoles(mask,cols,rows)){if(h.length<2)continue;for(const k of h){if(wall&&wall[k])continue;mask[k]=1;(inner||(inner=new Uint8Array(cols*rows)))[k]=1;}}
+    if(inner)region=inner;}
   if(!mask){cols=Math.min(fitC(1.5),Math.max(8,Math.round(Math.sqrt(D/1.5))));rows=Math.round(cols*1.5);}
   let arrows=generate2(cols,rows,2,L,rand,mask,lp,region,wall);
   // 화살 수가 목표와 많이 다르면 판 크기를 한 번 고쳐서 다시 (사각형 판만)
   if(!mask&&Math.abs(arrows.length-A)>A*0.2){const c=Math.min(fitC(1.5),Math.max(8,Math.round(cols*Math.sqrt(A/Math.max(1,arrows.length)))));
     if(c!==cols){cols=c;rows=Math.round(cols*1.5);arrows=generate2(cols,rows,2,L,rand,mask,lp,region);}}
-  return{cols,rows,arrows,text:'',mask,region,shape:mask?sh:null,song:songForNo(daily?6+hashNo(daily)%SONGS.length:no),ball};
+  return{cols,rows,arrows,text:'',mask,region,shape:mask?sh:null,song:songForNo(daily?6+hashNo(daily)%SONGS.length:no),ball,inner};
 }
 
 // ===== 화살의 미로 : 모양 모음 =====
@@ -3103,8 +3140,11 @@ const PALS_LIGHT=[['#e63946','#1d3557','#2a9d8f'],['#d62828','#f77f00','#003049'
 function arrowCol(a,th){ // 금색 화살은 금빛 / 6판에 1판은 검정(어두운 테마 흰색) / 나머지는 여러 색
   if(B.goldIds&&B.goldIds.has(a.id))return th.dark?'#f0c35a':'#c9962e';
   if(a.reg>=0&&B.shape&&B.shape.pal)return paintCol(B.shape.pal[a.reg],th);
-  if(B.mono)return th.dark?'#f3efe4':'#1c1c22';
-  const sets=th.dark?PALS_DARK:PALS_LIGHT,p=sets[(B.palI||0)%sets.length];return p[a.color%p.length];}
+  let c;if(B.mono)c=th.dark?'#f3efe4':'#1c1c22';else{const sets=th.dark?PALS_DARK:PALS_LIGHT,p=sets[(B.palI||0)%sets.length];c=p[a.color%p.length];}
+  if(B.inner&&a.reg===1)c=mixCol(c,THEME_BG[S.theme]||(th.dark?'#1b1d24':'#ffffff'),th.dark?0.55:0.6); // 그림 속 면은 연한 색 (윤곽선이 보이게)
+  return c;}
+const THEME_BG={neon:'#07070d',dark:'#1b1d24',ivory:'#f3ead9',white:'#ffffff'};
+function mixCol(a,b,t){const h=x=>[1,3,5].map(i=>parseInt(x.slice(i,i+2),16)),A=h(a),Bc=h(b);return '#'+A.map((v,i)=>Math.round(v+(Bc[i]-v)*t).toString(16).padStart(2,'0')).join('');}
 // 금색 화살이 빠질 때 함께 빠지는 화살 수
 const goldN=no=>no<300?2:no<600?3:no<800?4:no<1000?5:no<2000?6:no<3000?7:no<4000?8:no<5000?9:10;
 
