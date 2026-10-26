@@ -613,6 +613,18 @@ function findHoles(mask,cols,rows){const seen=new Uint8Array(cols*rows),st=[];co
   const out=[];for(let k0=0;k0<cols*rows;k0++){if(seen[k0]||mask[k0])continue;const cells=[k0],q=[k0];seen[k0]=1;
     while(q.length){const k=q.pop();for(const n of nb(k))if(n>=0&&!seen[n]&&!mask[n]){seen[n]=1;cells.push(n);q.push(n);}}out.push(cells);}
   return out;}
+// 구멍 모양 그대로의 박스 (ㅇ 안쪽 등): 금테 없이 구멍을 꽉 채움
+function blobBox(cells,cols,rows){let sx=0,sy=0;for(const k of cells){sx+=k%cols+.5;sy+=((k/cols)|0)+.5;}
+  const cx=sx/cells.length,cy=sy/cells.length,set=new Set(cells),wall=new Uint8Array(cols*rows);for(const k of cells)wall[k]=1;
+  let x0=1e9,y0=1e9,x1=-1,y1=-1;for(const k of cells){const x=k%cols,y=(k/cols)|0;x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}
+  return{shape:'blob',cx,cy,set,cols,cellList:cells.map(k=>[k%cols,(k/cols)|0]),rad:Math.max(x1-x0+1,y1-y0+1)/2,hw:(x1-x0+1)/2,hh:(y1-y0+1)/2,poly:[],wall,size:cells.length,area:cells.length};}
+// 구멍이 공 넣기 좋은 모양인지 (너무 좁거나 작으면 안 됨)
+function goodHole(h,cols){if(h.length<10)return false;const H=new Set(h);let core=0;
+  for(const k of h){const x=k%cols;if(x>0&&x<cols-1&&H.has(k-1)&&H.has(k+1)&&H.has(k-cols)&&H.has(k+cols))core++;}return core>=4;}
+function holeBoxList(mask,cols,rows,sh,count){const tot=count(mask),pic=!sh.text&&!sh.bmText;
+  return findHoles(mask,cols,rows).filter(h=>goodHole(h,cols)).map(h=>{let x0=1e9,y0=1e9,x1=-1,y1=-1;for(const k of h){const x=k%cols,y=(k/cols)|0;x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}
+        const compact=h.length/((x1-x0+1)*(y1-y0+1))>0.5&&h.length<=tot*0.3;return (!pic||compact)?blobBox(h,cols,rows):fitHoleBox(h,cols,rows);})
+      .filter(Boolean).sort((p,q)=>q.area-p.area).slice(0,3);}
 // 구멍 안에서 가장 큰 동그라미/네모 자리를 찾아 틀을 만듦 (잔선이 조금 튀어나온 큰 구멍도 됨)
 function fitHoleBox(cells,cols,rows){const H=new Set(cells);let x0=1e9,y0=1e9,x1=-1,y1=-1;
   for(const k of cells){const x=k%cols,y=(k/cols)|0;x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}
@@ -689,13 +701,13 @@ function bigBoard(no,rand,sh,daily){
   }
   let inner=null;
   // 황금볼 판이면: 모양 안에서 둘레가 화살로 가장 잘 둘러싸이는 자리에 틀을 넣음
-  let ball=null,wall=null;
+  let ball=null,wall=null,hbL=null;
   if(mask&&sh&&sh.hole&&!daily){ // 고리 모양: 가운데 구멍에 꼭 맞는 틀
     const Rb=Math.max(2.4,sh.hole*cols*0.92),bx=mkBox('circle',cols/2,rows/2,Rb),m0=mask.slice();wall=new Uint8Array(cols*rows);
     for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)if(bx.inBox(x,y)){wall[y*cols+x]=1;mask[y*cols+x]=0;}
     ball={shape:'circle',cx:bx.cx,cy:bx.cy,rad:bx.rad,hw:bx.hw,hh:bx.hh,poly:bx.poly,wall};ball.n=ballN(no,ball);}
-  else if(mask&&sh&&!sh.flag&&!daily&&isBallNo(no)&&findHoles(mask,cols,rows).map(h=>fitHoleBox(h,cols,rows)).some(Boolean)){
-    const hb=findHoles(mask,cols,rows).map(h=>fitHoleBox(h,cols,rows)).filter(Boolean).sort((p,q)=>q.area-p.area).slice(0,3);wall=new Uint8Array(cols*rows);
+  else if(mask&&sh&&!sh.flag&&!daily&&(hbL=holeBoxList(mask,cols,rows,sh,count)).length){ // 구멍이 있으면 번호와 상관없이 황금볼
+    const hb=hbL;wall=new Uint8Array(cols*rows);
     for(const b of hb){for(let k=0;k<wall.length;k++)if(b.wall[k])wall[k]=1;b.n=ballN(no,b);}
     for(const b of hb)b.wall=wall;ball=hb[0];ball.more=hb.slice(1);}
   else if(mask&&sh&&!sh.flag&&!daily&&isBallNo(no)){
@@ -3119,8 +3131,8 @@ const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.par
 
 // ---------- 한국어 / English (휴대폰 언어에 따라 자동, 테마 창에서 바꿀 수 있음) ----------
 const I18N={
- ko:{neon:'네온',dark:'다크',ivory:'아이보리',white:'화이트',sec:'초',min:'분 ',daily:'오늘의 도전',replaying:'다시 하는 중',streak:'✨ 완벽 연속 {0}/5',vault:'내 금고 {0}',ballGet:'황금볼 +{0} · 내 금고 {1}',ballReplay:'다시 하는 판은 황금볼이 쌓이지 않아요',buyT:'황금볼로 힌트 쓰기',buyP:'황금볼 50개로 힌트 1개를 쓸까요?\n내 금고: {0}개',buyYes:'황금볼 50개 쓰기',buyNo:'닫기',ballNeed:'힌트를 다 썼어요. 황금볼 50개가 모이면 힌트를 살 수 있어요 (지금 {0}개)',left:'남은 화살 {0}',pathOn:'경로선 켬',pathOff:'경로선 끔',gridOn:'격자선 켬',gridOff:'격자선 끔',hintNone:'힌트는 내일 다시 3개가 채워져요',newRec:'🏆 신기록!',was:'이전 {0}',time:'기록 {0}',best:' · 내 최고 {0}',dailyOk:'도전 성공!',reached:'No.{0} 달성!',clear:'클리어!',dailyDone:'오늘의 도전을 해냈어요',madeIt:'{0}번째 판까지 왔어요',skipTo:'⏩ 10판 건너뛰고 No.{0}로 가기',home:'처음 화면으로',backTo:'No.{0}(으)로 돌아가기',next:'다음 판',skipped:'10판을 건너뛰었어요!',sBasic:'소리: 기본',sFun:'소리: 재미있게',sOff:'소리: 끔',roadTip:'지난 번호를 누르면 다시 할 수 있어요',homeSkip:'⏩ +10판 건너뛰기',dailyBtn:'🏆 오늘의 도전',play:'시작하기',foot:'© 2026 아이디어믹스랩. All rights reserved.',perfect:'음표를 하나도 잃지 않았어요',earn:'5판 연속 완벽! 10판 건너뛰기 기회가 생겼어요',hello:'반가워요!',askPlayed:'화살 미로 게임을 해본 적 있나요?',newbie:'처음이에요',pro:'해봤어요 (조금 앞에서 시작)',outT:'음표가 모두 사라졌어요',outP:'이 판을 처음부터 다시 도전해 보세요.',retry:'다시 도전하기',earnHint:'5판 연속 완벽! 힌트 2개를 받았어요',nextNo:'다음 판 (No.{0})',goNum:'🔢 번호로 가기',goTitle:'몇 번 판으로 갈까요?',goDesc:'1부터 {0}까지 지나온 판을 골라서 다시 할 수 있어요.',goBtn:'가기',close:'닫기',tut0:'화살표를 탭하면 가리키는 방향으로 빠져나가요',tut1:'앞이 막힌 화살표를 누르면 음표가 하나 사라져요. 순서를 찾아보세요'},
- en:{neon:'Neon',dark:'Dark',ivory:'Ivory',white:'White',sec:'s',min:'m ',daily:"Today's Challenge",replaying:'Replaying',streak:'✨ Perfect streak {0}/5',vault:'My vault {0}',ballGet:'Golden balls +{0} · Vault {1}',ballReplay:'Replays don\'t add golden balls',buyT:'Use golden balls for a hint',buyP:'Spend 50 golden balls for 1 hint?\nVault: {0}',buyYes:'Spend 50 golden balls',buyNo:'Close',ballNeed:'Out of hints. Collect 50 golden balls to buy one (you have {0})',left:'Arrows left: {0}',pathOn:'Paths on',pathOff:'Paths off',gridOn:'Grid on',gridOff:'Grid off',hintNone:'Out of hints — 3 more tomorrow',newRec:'🏆 New record!',was:'was {0}',time:'Time {0}',best:' · Best {0}',dailyOk:'Challenge complete!',reached:'Reached No.{0}!',clear:'Clear!',dailyDone:"You beat today's challenge",madeIt:"You've made it to No.{0}",skipTo:'⏩ Skip 10 → No.{0}',home:'Home',backTo:'Back to No.{0}',next:'Next',skipped:'Skipped 10 stages!',sBasic:'Sound: normal',sFun:'Sound: fun',sOff:'Sound: off',roadTip:'Tap a past number to replay it',homeSkip:'⏩ Skip +10',dailyBtn:"🏆 Daily",play:'Play',foot:'© 2026 IdeaFusionLab. All rights reserved.',perfect:'Perfect — no notes lost',earn:'5 perfect clears in a row! You earned a 10-stage skip',hello:'Welcome!',askPlayed:'Have you played arrow puzzle games before?',newbie:"I'm new",pro:'Yes (start a little ahead)',outT:'Out of notes',outP:'Try this stage again from the start.',retry:'Try again',earnHint:'5 perfect in a row! +2 hints',nextNo:'Next (No.{0})',goNum:'🔢 Go to No.',goTitle:'Which stage?',goDesc:'Pick any stage you have reached, 1 to {0}.',goBtn:'Go',close:'Close',tut0:'Tap an arrow and it flies off the way it points',tut1:'Tapping a blocked arrow costs a note. Find the right order!'}};
+ ko:{neon:'네온',dark:'다크',ivory:'아이보리',white:'화이트',sec:'초',min:'분 ',daily:'오늘의 도전',replaying:'다시 하는 중',streak:'✨ 완벽 연속 {0}/5',vault:'내 금고 {0}',ballGet:'황금볼 +{0} · 내 금고 {1}',ballReplay:'다시 하는 판은 황금볼이 쌓이지 않아요',buyT:'음표로 힌트 쓰기',buyP:'음표 20개로 힌트 1개를 쓸까요?\n내 금고: 음표 {0}개',buyYes:'음표 20개 쓰기',buyNo:'닫기',ballNeed:'힌트를 다 썼어요. 음표 20개가 모이면 힌트를 살 수 있어요 (지금 {0}개)',noteGet:'음표 +{0} · 내 금고 {1}',noteReplay:'다시 하는 판은 음표가 쌓이지 않아요',left:'남은 화살 {0}',pathOn:'경로선 켬',pathOff:'경로선 끔',gridOn:'격자선 켬',gridOff:'격자선 끔',hintNone:'힌트는 내일 다시 3개가 채워져요',newRec:'🏆 신기록!',was:'이전 {0}',time:'기록 {0}',best:' · 내 최고 {0}',dailyOk:'도전 성공!',reached:'No.{0} 달성!',clear:'클리어!',dailyDone:'오늘의 도전을 해냈어요',madeIt:'{0}번째 판까지 왔어요',skipTo:'⏩ 10판 건너뛰고 No.{0}로 가기',home:'처음 화면으로',backTo:'No.{0}(으)로 돌아가기',next:'다음 판',skipped:'10판을 건너뛰었어요!',sBasic:'소리: 기본',sFun:'소리: 재미있게',sOff:'소리: 끔',roadTip:'지난 번호를 누르면 다시 할 수 있어요',homeSkip:'⏩ +10판 건너뛰기',dailyBtn:'🏆 오늘의 도전',play:'시작하기',foot:'© 2026 아이디어믹스랩. All rights reserved.',perfect:'음표를 하나도 잃지 않았어요',earn:'5판 연속 완벽! 10판 건너뛰기 기회가 생겼어요',hello:'반가워요!',askPlayed:'화살 미로 게임을 해본 적 있나요?',newbie:'처음이에요',pro:'해봤어요 (조금 앞에서 시작)',outT:'음표가 모두 사라졌어요',outP:'이 판을 처음부터 다시 도전해 보세요.',retry:'다시 도전하기',earnHint:'5판 연속 완벽! 힌트 2개를 받았어요',nextNo:'다음 판 (No.{0})',goNum:'🔢 번호로 가기',goTitle:'몇 번 판으로 갈까요?',goDesc:'1부터 {0}까지 지나온 판을 골라서 다시 할 수 있어요.',goBtn:'가기',close:'닫기',tut0:'화살표를 탭하면 가리키는 방향으로 빠져나가요',tut1:'앞이 막힌 화살표를 누르면 음표가 하나 사라져요. 순서를 찾아보세요'},
+ en:{neon:'Neon',dark:'Dark',ivory:'Ivory',white:'White',sec:'s',min:'m ',daily:"Today's Challenge",replaying:'Replaying',streak:'✨ Perfect streak {0}/5',vault:'My vault {0}',ballGet:'Golden balls +{0} · Vault {1}',ballReplay:'Replays don\'t add golden balls',buyT:'Use notes for a hint',buyP:'Spend 20 notes for 1 hint?\nVault: {0} notes',buyYes:'Spend 20 notes',buyNo:'Close',ballNeed:'Out of hints. Collect 20 notes to buy one (you have {0})',noteGet:'Notes +{0} · Vault {1}',noteReplay:'Replays don\'t add notes',left:'Arrows left: {0}',pathOn:'Paths on',pathOff:'Paths off',gridOn:'Grid on',gridOff:'Grid off',hintNone:'Out of hints — 3 more tomorrow',newRec:'🏆 New record!',was:'was {0}',time:'Time {0}',best:' · Best {0}',dailyOk:'Challenge complete!',reached:'Reached No.{0}!',clear:'Clear!',dailyDone:"You beat today's challenge",madeIt:"You've made it to No.{0}",skipTo:'⏩ Skip 10 → No.{0}',home:'Home',backTo:'Back to No.{0}',next:'Next',skipped:'Skipped 10 stages!',sBasic:'Sound: normal',sFun:'Sound: fun',sOff:'Sound: off',roadTip:'Tap a past number to replay it',homeSkip:'⏩ Skip +10',dailyBtn:"🏆 Daily",play:'Play',foot:'© 2026 IdeaFusionLab. All rights reserved.',perfect:'Perfect — no notes lost',earn:'5 perfect clears in a row! You earned a 10-stage skip',hello:'Welcome!',askPlayed:'Have you played arrow puzzle games before?',newbie:"I'm new",pro:'Yes (start a little ahead)',outT:'Out of notes',outP:'Try this stage again from the start.',retry:'Try again',earnHint:'5 perfect in a row! +2 hints',nextNo:'Next (No.{0})',goNum:'🔢 Go to No.',goTitle:'Which stage?',goDesc:'Pick any stage you have reached, 1 to {0}.',goBtn:'Go',close:'Close',tut0:'Tap an arrow and it flies off the way it points',tut1:'Tapping a blocked arrow costs a note. Find the right order!'}};
 let LANG=LS.get('am_lang',(navigator.language||'').toLowerCase().startsWith('ko')?'ko':'en');
 const tr=(k,...v)=>(I18N[LANG][k]||I18N.ko[k]||k).replace(/\{(\d)\}/g,(m,i)=>v[i]);
 
@@ -3161,27 +3173,36 @@ let B=null, occ=null, stars=0, maxStars=0, combo=0, lostStar=false, remaining=0;
 let hintId=-1, busy=false;
 // ---------- 황금볼 ----------
 const BALL_SVG='<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="#d9a948" stroke="#7a5518" stroke-width="1"/><circle cx="10" cy="10" r="6" fill="#f0c86a"/><ellipse cx="7.4" cy="6.8" rx="3" ry="1.8" fill="#fffbe6" transform="rotate(-30 7.4 6.8)"/></svg>';
-const BALL_COST=50;
+const NOTE_COST=20; // 힌트 1개 = 모은 음표 20개
+const NOTE_ICON='<span style="color:var(--note,#3b8fd6);font-weight:700">♪</span>';
 // 틀: 테마와 상관없이 안쪽은 짙은 밤하늘색, 테두리는 금속 금색
 function boxPath(c2,b,c,inset){const X=geo.ox+b.cx*c,Y=geo.oy+b.cy*c;c2.beginPath();
+  if(b.shape==='blob'){const e=c*0.04;for(const [x,y] of b.cellList)c2.rect(geo.ox+x*c-e,geo.oy+y*c-e,c+2*e,c+2*e);return;}
   if(b.shape==='circle')c2.arc(X,Y,b.rad*c-inset,0,6.2832);
   else if(b.poly&&b.poly.length){const R0=Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1]))),k=Math.max(0.2,1-inset/(R0*c)*1.35);b.poly.forEach((p,i)=>{const x=X+p[0]*c*k,y=Y+p[1]*c*k;i?c2.lineTo(x,y):c2.moveTo(x,y);});c2.closePath();}
   else{const w=b.hw*c-inset,h=b.hh*c-inset,q=Math.min(w,h)*0.22;c2.moveTo(X-w+q,Y-h);c2.arcTo(X+w,Y-h,X+w,Y+h,q);c2.arcTo(X+w,Y+h,X-w,Y+h,q);c2.arcTo(X-w,Y+h,X-w,Y-h,q);c2.arcTo(X-w,Y-h,X+w,Y-h,q);c2.closePath();}}
 function drawBallBox(th){for(const b of B.boxes)drawBoxOne(th,b);}
-function drawBoxOne(th,b){if(b.open&&performance.now()>=b.open.t0)return;const c=geo.cell,X=geo.ox+b.cx*c,Y=geo.oy+b.cy*c,R=(b.shape==='circle'?b.rad:Math.max(b.hw,b.hh))*c;
-  boxPath(ctx,b,c,c*0.45);const bg=ctx.createRadialGradient(X,Y-R*0.3,R*0.1,X,Y,R*1.05);bg.addColorStop(0,'#1a2b52');bg.addColorStop(.6,'#0d1730');bg.addColorStop(1,'#050a17');ctx.fillStyle=bg;ctx.fill();
-  const ring=ctx.createLinearGradient(X-R,Y-R,X+R,Y+R);ring.addColorStop(0,'#fff3c4');ring.addColorStop(.3,'#c8963e');ring.addColorStop(.5,'#fff6d6');ring.addColorStop(.72,'#d4a64e');ring.addColorStop(1,'#8a6420');
-  ctx.lineWidth=Math.max(2.5,c*0.32);ctx.lineJoin='round';ctx.strokeStyle=ring;ctx.stroke();
-  ctx.lineWidth=Math.max(1,c*0.08);ctx.strokeStyle='rgba(255,246,214,.55)';boxPath(ctx,b,c,c*0.62);ctx.stroke();}
+function drawBoxOne(th,b){if(b.open&&performance.now()>=b.open.t0)return;const c=geo.cell,X=geo.ox+b.cx*c,Y=geo.oy+b.cy*c,R=Math.max(b.rad||1,b.hw||1,b.hh||1)*c;
+  const bg=ctx.createRadialGradient(X,Y-R*0.3,R*0.1,X,Y,R*1.05);bg.addColorStop(0,'#1a2b52');bg.addColorStop(.6,'#0d1730');bg.addColorStop(1,'#050a17');
+  if(b.shape==='blob'){boxPath(ctx,b,c,0);ctx.fillStyle=bg;ctx.fill();
+    // 얇은 금빛 선: 구멍 가장자리를 따라
+    ctx.beginPath();const S=b.set,C=b.cols;for(const [x,y] of b.cellList){const k=y*C+x,L=geo.ox+x*c,T=geo.oy+y*c;
+      if(!S.has(k-C)){ctx.moveTo(L,T);ctx.lineTo(L+c,T);}if(!S.has(k+C)){ctx.moveTo(L,T+c);ctx.lineTo(L+c,T+c);}
+      if(x===0||!S.has(k-1)){ctx.moveTo(L,T);ctx.lineTo(L,T+c);}if(!S.has(k+1)){ctx.moveTo(L+c,T);ctx.lineTo(L+c,T+c);}}
+    ctx.lineWidth=Math.max(1,c*0.09);ctx.lineCap='round';ctx.strokeStyle='rgba(240,200,110,.7)';ctx.stroke();return;}
+  boxPath(ctx,b,c,c*0.12);ctx.fillStyle=bg;ctx.fill();
+  ctx.lineWidth=Math.max(1,c*0.1);ctx.lineJoin='round';ctx.strokeStyle='rgba(240,200,110,.75)';ctx.stroke();}
 // 구슬 움직임은 따로 겹친 캔버스에서 (판 전체를 매번 다시 그리지 않아도 됨)
 const BL={cv:null,cx:null,raf:0,balls:[],last:0,flyT0:0};
-function ballArea(b){if(b.shape==='circle')return Math.PI*b.rad*b.rad;if(b.shape==='square')return 4*b.hw*b.hh;let a=0;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++)a+=b.poly[j][0]*b.poly[i][1]-b.poly[i][0]*b.poly[j][1];return Math.abs(a)/2;}
-function ballInside(b,x,y,m){if(b.shape==='circle')return Math.hypot(x,y)<b.rad-m;if(b.shape==='square')return Math.abs(x)<b.hw-m&&Math.abs(y)<b.hh-m;
+function ballArea(b){if(b.shape==='blob')return b.area*0.8;if(b.shape==='circle')return Math.PI*b.rad*b.rad;if(b.shape==='square')return 4*b.hw*b.hh;let a=0;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++)a+=b.poly[j][0]*b.poly[i][1]-b.poly[i][0]*b.poly[j][1];return Math.abs(a)/2;}
+function ballInside(b,x,y,m){if(b.shape==='blob'){const gx=b.cx+x,gy=b.cy+y;for(const [dx,dy] of [[0,0],[m,0],[-m,0],[0,m],[0,-m]])if(!b.set.has(Math.floor(gy+dy)*b.cols+Math.floor(gx+dx)))return false;return true;}
+  if(b.shape==='circle')return Math.hypot(x,y)<b.rad-m;if(b.shape==='square')return Math.abs(x)<b.hw-m&&Math.abs(y)<b.hh-m;
   if(!pip(b.poly,x,y))return false;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++){if(segD(b.poly[j],b.poly[i],x,y).d<m)return false;}return true;}
 function segD(A,Bp,x,y){const dx=Bp[0]-A[0],dy=Bp[1]-A[1],t=Math.max(0,Math.min(1,((x-A[0])*dx+(y-A[1])*dy)/(dx*dx+dy*dy||1))),px=A[0]+dx*t,py=A[1]+dy*t;return{d:Math.hypot(x-px,y-py),px,py};}
 function ballInit(){BL.balls=[];if(!B.ball)return;const r0=mulberry32((B.no||1)*977+3);
-  B.boxes.forEach((b,bi)=>{const W=(b.shape==='circle'?b.rad:b.shape==='square'?Math.max(b.hw,b.hh):Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1])))),mine=[];
+  B.boxes.forEach((b,bi)=>{const W=(b.shape==='blob'?b.rad:b.shape==='circle'?b.rad:b.shape==='square'?Math.max(b.hw,b.hh):Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1])))),mine=[];
   let br=Math.max(0.36,Math.min(1.6,Math.sqrt(0.15*ballArea(b)/(b.n*Math.PI))));
+  if(b.shape==='blob')br=Math.min(br,0.55);
   if(b.poly&&b.poly.length){let inr=1e9;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++)inr=Math.min(inr,segD(b.poly[j],b.poly[i],0,0).d);br=Math.min(br,Math.max(0.36,(inr-0.7)*0.4));}
   for(let i=0;i<b.n;i++){let x=0,y=0,ok=false;for(let t=0;t<900&&!ok;t++){x=(r0()*2-1)*W;y=(r0()*2-1)*W;ok=ballInside(b,x,y,br+0.7)&&mine.every(q=>Math.hypot(q.x-x,q.y-y)>q.r+br);}
     if(!ok){x=(r0()-.5)*0.4;y=(r0()-.5)*0.4;}
@@ -3191,7 +3212,12 @@ function ballKick(){if(!BL.raf&&B&&B.ball)BL.raf=requestAnimationFrame(ballFrame
 function ballStep(dt,now){const g=9,ga=now/1500,gx=Math.sin(ga)*g+Math.sin(now/530)*3,gy=Math.cos(ga*0.8)*g*0.6+2.5;
   for(const p of BL.balls){if(!p.fly&&Math.random()<dt*0.9){p.vx+=(Math.random()-.5)*7;p.vy-=2+Math.random()*4;}} // 가끔 톡톡 튐 // 천천히 기울어지는 바닥을 따라 굴러다님
   for(const p of BL.balls){if(p.fly)continue;const b=B.boxes[p.bi],inner=b.shape==='circle'?b.rad-0.62:null,iw=b.hw-0.62,ih=b.hh-0.62;p.vx+=gx*dt;p.vy+=gy*dt;p.vx*=0.995;p.vy*=0.995;p.x+=p.vx*dt;p.y+=p.vy*dt;p.spin+=Math.hypot(p.vx,p.vy)*dt/p.r;
-    if(inner){const d=Math.hypot(p.x,p.y),lim=inner-p.r;if(d>lim){const nx=p.x/d,ny=p.y/d;p.x=nx*lim;p.y=ny*lim;const vn=p.vx*nx+p.vy*ny;if(vn>0){p.vx-=1.55*vn*nx;p.vy-=1.55*vn*ny;}}}
+    if(b.shape==='blob'){const gx=b.cx+p.x,gy=b.cy+p.y,S=b.set,C=b.cols;
+      if(!S.has(Math.floor(gy)*C+Math.floor(gx))){p.x-=p.vx*dt*1.2;p.y-=p.vy*dt*1.2;p.vx*=-0.5;p.vy*=-0.5;}
+      else for(let yy=Math.floor(gy-p.r)-1;yy<=Math.floor(gy+p.r)+1;yy++)for(let xx=Math.floor(gx-p.r)-1;xx<=Math.floor(gx+p.r)+1;xx++){if(S.has(yy*C+xx))continue;
+        const qx=Math.max(xx,Math.min(xx+1,b.cx+p.x)),qy=Math.max(yy,Math.min(yy+1,b.cy+p.y)),dx=b.cx+p.x-qx,dy=b.cy+p.y-qy,d=Math.hypot(dx,dy);
+        if(d<p.r&&d>1e-6){const nx=dx/d,ny=dy/d;p.x+=nx*(p.r-d);p.y+=ny*(p.r-d);const vn=p.vx*nx+p.vy*ny;if(vn<0){p.vx-=1.55*vn*nx;p.vy-=1.55*vn*ny;}}}}
+    else if(inner){const d=Math.hypot(p.x,p.y),lim=inner-p.r;if(d>lim){const nx=p.x/d,ny=p.y/d;p.x=nx*lim;p.y=ny*lim;const vn=p.vx*nx+p.vy*ny;if(vn>0){p.vx-=1.55*vn*nx;p.vy-=1.55*vn*ny;}}}
     else if(b.shape==='square'){if(Math.abs(p.x)>iw-p.r){p.x=Math.sign(p.x)*(iw-p.r);p.vx*=-0.55;}if(Math.abs(p.y)>ih-p.r){p.y=Math.sign(p.y)*(ih-p.r);p.vy*=-0.55;}}
     else{const P=b.poly,pad=p.r+0.62;
       if(!pip(P,p.x,p.y)){p.x*=0.9;p.y*=0.9;p.vx*=-0.5;p.vy*=-0.5;}
@@ -3212,7 +3238,7 @@ function ballFrame(now){BL.raf=0;const cv2=BL.cv;if(!cv2||!B||!B.ball||$('#game'
   const dt=Math.min(0.04,(now-BL.last)/1000);BL.last=now;ballStep(dt,now);
   const c2=BL.cx,c=geo.cell;c2.setTransform(geo.dpr,0,0,geo.dpr,0,0);c2.clearRect(0,0,geo.w,geo.h);
   const opened=B.ball.open&&now>=B.ball.open.t0;let alive=0;
-  B.boxes.forEach((b,bi)=>{c2.save();if(!opened){boxPath(c2,b,c,c*0.62);c2.clip();}
+  B.boxes.forEach((b,bi)=>{c2.save();if(!opened){boxPath(c2,b,c,b.shape==='blob'?0:c*0.15);c2.clip();}
     for(const p of BL.balls){if(p.fly||p.bi!==bi)continue;alive++;drawBall(c2,geo.ox+(b.cx+p.x)*c,geo.oy+(b.cy+p.y)*c,p.r*c,p,now,1);}
     c2.restore();});
   if(B.ball.open){drawBurst(c2,now);if(now-B.ball.open.t0<BURST_MS*1.6)alive++;}
@@ -3230,7 +3256,7 @@ function ballRelease(now){const b=B.ball;for(const x of B.boxes)x.open={t0:now};
     for(let k=0;k<b.wall.length;k++)if(b.wall[k])B.mask[k]=1;kick();},Math.max(0,now-performance.now())+120);}
 function drawBurst(c2,now){for(const b of B.boxes)drawBurstOne(c2,now,b);}
 function drawBurstOne(c2,now,b){const o=b.open;if(!o)return;const t=(now-o.t0)/BURST_MS;if(t<0||t>1.6)return;
-  const c=geo.cell,X=geo.ox+b.cx*c,Y=geo.oy+b.cy*c,R=(b.shape==='circle'?b.rad:b.shape==='square'?Math.max(b.hw,b.hh):Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1]))))*c;
+  const c=geo.cell,X=geo.ox+b.cx*c,Y=geo.oy+b.cy*c,R=(b.shape==='circle'||b.shape==='blob'?b.rad:b.shape==='square'?Math.max(b.hw,b.hh):Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1]))))*c;
   c2.save();
   if(t<1){ // 틀이 금빛으로 부풀며 사라짐
     const k=1+0.35*t;c2.globalAlpha=1-t;c2.translate(X,Y);c2.scale(k,k);c2.translate(-X,-Y);
@@ -3285,7 +3311,8 @@ function pickGold(k,rg){const A=B.arrows,C=B.cols,R=B.rows,o=new Int16Array(C*R)
   let left=A.length,L=0;while(left>0&&L<400){const f=A.filter(a=>layer[a.id]<0&&free(a));if(!f.length)break;for(const a of f){layer[a.id]=L;left--;for(const [x,y] of a.cells)o[y*C+x]=-1;}L++;}
   const maxL=Math.max(1,L-1),cx=(C-1)/2,cy=(R-1)/2;let md=1;const dist=a=>{let s=0;for(const [x,y] of a.cells)s+=Math.hypot((x-cx)/C,(y-cy)/R);return s/a.cells.length;};
   A.forEach(a=>{md=Math.max(md===1?0:md,dist(a));});
-  const tiers=[a=>layer[a.id]>=1&&layer[a.id]<=Math.min(3,maxL)&&dist(a)>md*0.4,a=>layer[a.id]>=1&&layer[a.id]<=Math.max(3,Math.ceil(maxL*0.5)),a=>layer[a.id]>=1,a=>true];
+  const lo=Math.max(1,Math.round(maxL*0.3)),hi=Math.max(lo,Math.round(maxL*0.6));
+  const tiers=[a=>layer[a.id]>=lo&&layer[a.id]<=hi&&dist(a)>md*0.2&&dist(a)<md*0.7,a=>layer[a.id]>=lo&&layer[a.id]<=hi,a=>layer[a.id]>=1&&layer[a.id]<=Math.max(3,Math.ceil(maxL*0.5)),a=>layer[a.id]>=1,a=>true];
   const out=[];for(const t of tiers){const c=A.filter(a=>t(a)&&!out.includes(a.id));while(c.length&&out.length<k){out.push(c.splice(Math.floor(rg()*c.length),1)[0].id);}if(out.length>=k)break;}
   return out;}
 function loadStage(){
@@ -3543,16 +3570,16 @@ const HINTS_PER_DAY=3;
 const dailyLeft=()=>{const h=LS.get('am_hints',{d:'',u:0});return h.d===today()?Math.max(0,HINTS_PER_DAY-h.u):HINTS_PER_DAY;};
 const hintsLeft=()=>dailyLeft()+LS.get('am_bonusHint',0);
 const useHint=()=>{if(dailyLeft()<=0){LS.set('am_bonusHint',Math.max(0,LS.get('am_bonusHint',0)-1));return;}const h=LS.get('am_hints',{d:'',u:0});LS.set('am_hints',h.d===today()?{d:h.d,u:h.u+1}:{d:today(),u:1});};
-function updateHintBadge(){const n=hintsLeft(),bl=LS.get('am_balls',0);$('#hintBadge').textContent=n>0?n:(bl>=BALL_COST?'●':'0');$('#hintBadge').classList.toggle('ad',n===0&&bl<BALL_COST);}
+function updateHintBadge(){const n=hintsLeft(),bl=LS.get('am_notes',0);$('#hintBadge').textContent=n>0?n:(bl>=NOTE_COST?'♪':'0');$('#hintBadge').classList.toggle('ad',n===0&&bl<NOTE_COST);}
 $('#hintBtn').addEventListener('click',async()=>{
   if(busy||remaining===0)return;Snd.unlock();
   if(hintId>=0&&B.arrows[hintId].alive)return;
   if(hintsLeft()>0){useHint();updateHintBadge();giveHint();}
-  else{const g=LS.get('am_balls',0);if(g<BALL_COST){toast(tr('ballNeed',g));return;}
+  else{const g=LS.get('am_notes',0);if(g<NOTE_COST){toast(tr('ballNeed',g));return;}
     $('#buyT').textContent=tr('buyT');$('#buyP').innerText=tr('buyP',g.toLocaleString());$('#buyYes').textContent=tr('buyYes');$('#buyNo').textContent=tr('buyNo');$('#buyModal').hidden=false;}
 });
 $('#buyNo').addEventListener('click',()=>{$('#buyModal').hidden=true;});
-$('#buyYes').addEventListener('click',()=>{$('#buyModal').hidden=true;const g=LS.get('am_balls',0);if(g<BALL_COST)return;LS.set('am_balls',g-BALL_COST);updateHintBadge();giveHint();});
+$('#buyYes').addEventListener('click',()=>{$('#buyModal').hidden=true;const g=LS.get('am_notes',0);if(g<NOTE_COST)return;LS.set('am_notes',g-NOTE_COST);updateHintBadge();giveHint();});
 function giveHint(){
   const free=B.arrows.filter(a=>a.alive&&!a.anim&&isFree(a));
   if(!free.length)return;
@@ -3594,9 +3621,10 @@ function onClear(){
   // 실력으로 여는 건너뛰기: 본 게임에서 별을 하나도 안 잃고 5판 연속 → +10판 건너뛰기 기회 1번
   let earned=false;
   // 골드바: 이 판에서 찾은 골드바 + 완벽 클리어 보너스 1개 → 내 금고 (다시 하는 판은 쌓이지 않음)
-  if(B.ball){const el=$('#earnLine');
-    if(RP)el.textContent=tr('ballReplay');
-    else{const bn=B.boxes.reduce((s,b)=>s+b.n,0),tot=LS.get('am_balls',0)+bn;LS.set('am_balls',tot);el.innerHTML=BALL_SVG+tr('ballGet',bn,tot.toLocaleString());}
+  // 보상: 남은 음표가 내 금고로 (황금볼은 보상 없이 연출만, 다시 하는 판은 쌓이지 않음)
+  {const el=$('#earnLine');
+    if(RP)el.textContent=tr('noteReplay');
+    else{const got=Math.max(0,stars),tot=LS.get('am_notes',0)+got;LS.set('am_notes',tot);el.innerHTML=NOTE_ICON+' '+tr('noteGet',got,tot.toLocaleString());}
     earned=true;}
   if(DC){const dd=LS.get('am_daily',{});dd[todayKey()]=lostStar?1:2;LS.set('am_daily',dd);}
   const no=B.no,levelDone=!RP&&!DC&&no%100===0;
@@ -3798,7 +3826,7 @@ function renderHome(){
   road.scrollTop=RD.top+2*RD.step-road.clientHeight/2;
   $('#roadTipLine').textContent=no>1?tr('roadTip'):'';
   $('#goNo').textContent='No.'+no.toLocaleString();
-  $('#vaultPill').innerHTML=BALL_SVG+tr('vault',LS.get('am_balls',0).toLocaleString());
+  $('#vaultPill').innerHTML=NOTE_ICON+' '+tr('vault',LS.get('am_notes',0).toLocaleString());
   $('#homeSkip').textContent=tr('goNum');$('#homeSkip').hidden=no<=1;
   const dd=LS.get('am_daily',{})[todayKey()];$('#dailyBtn').innerHTML=tr('dailyBtn')+(dd?' <b>✓</b>':'');
 }
