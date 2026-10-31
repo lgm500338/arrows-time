@@ -212,6 +212,7 @@ body[data-theme="neon"] .card p,body[data-theme="dark"] .card p{color:#cfc8b4}
 .card p{margin:0 0 6px;color:var(--muted);font-size:14.5px;line-height:1.5}
 #perfect{color:var(--star);font-weight:700}
 .pbtn{display:block;width:100%;margin-top:16px;border:0;border-radius:16px;padding:15px;font-family:"Jua",system-ui,sans-serif;font-size:20px;background:var(--btn);color:var(--btnInk);cursor:pointer}
+.jbtn{background:linear-gradient(135deg,#b8862f,#f9e29c 45%,#d4a64e)!important;color:#3a2706!important;font-size:17px!important;margin-top:10px!important}
 .sbtn{display:block;width:100%;margin-top:8px;border:0;border-radius:16px;padding:12px;font-size:15px;background:var(--chip);color:var(--ink);cursor:pointer}
 #adModal .card{background:#222;color:#fff}#adModal p{color:#aaa}
 #adCount{font-family:"Jua",sans-serif;font-size:54px;margin:8px 0}
@@ -264,7 +265,7 @@ body[data-theme="neon"] .card p,body[data-theme="dark"] .card p{color:#cfc8b4}
 <div class="modal" id="clearModal" hidden><div class="card">
   <h2 id="clearTitle">클리어!</h2><p id="clearSub"></p><p id="timeLine"></p><p id="shapeLine" hidden></p><p id="perfect">별을 하나도 잃지 않았어요</p>
   <p id="earnLine" hidden>5판 연속 완벽! 10판 건너뛰기 기회가 생겼어요</p>
-  <button class="pbtn" id="nextBtn">다음 판</button><button class="sbtn" id="skipBtn" hidden></button></div></div>
+  <button class="pbtn" id="nextBtn">다음 판</button><button class="pbtn jbtn" id="jumpBtn" hidden></button><button class="sbtn" id="skipBtn" hidden></button></div></div>
 
 <div class="modal" id="firstModal" hidden><div class="card">
   <h2 style="font-size:26px" id="hello">반가워요!</h2><p id="askPlayed">화살 미로 게임을 해본 적 있나요?</p>
@@ -3131,8 +3132,8 @@ const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.par
 
 // ---------- 한국어 / English (휴대폰 언어에 따라 자동, 테마 창에서 바꿀 수 있음) ----------
 const I18N={
- ko:{neon:'네온',dark:'다크',ivory:'아이보리',white:'화이트',sec:'초',min:'분 ',daily:'오늘의 도전',replaying:'다시 하는 중',streak:'✨ 완벽 연속 {0}/5',vault:'내 금고 {0}',ballGet:'황금볼 +{0} · 내 금고 {1}',ballReplay:'다시 하는 판은 황금볼이 쌓이지 않아요',buyT:'음표로 힌트 쓰기',buyP:'음표 20개로 힌트 1개를 쓸까요?\n내 금고: 음표 {0}개',buyYes:'음표 20개 쓰기',buyNo:'닫기',ballNeed:'힌트를 다 썼어요. 음표 20개가 모이면 힌트를 살 수 있어요 (지금 {0}개)',noteGet:'음표 +{0} · 내 금고 {1}',noteReplay:'다시 하는 판은 음표가 쌓이지 않아요',left:'남은 화살 {0}',pathOn:'경로선 켬',pathOff:'경로선 끔',gridOn:'격자선 켬',gridOff:'격자선 끔',hintNone:'힌트는 내일 다시 3개가 채워져요',newRec:'🏆 신기록!',was:'이전 {0}',time:'기록 {0}',best:' · 내 최고 {0}',dailyOk:'도전 성공!',reached:'No.{0} 달성!',clear:'클리어!',dailyDone:'오늘의 도전을 해냈어요',madeIt:'{0}번째 판까지 왔어요',skipTo:'⏩ 10판 건너뛰고 No.{0}로 가기',home:'처음 화면으로',backTo:'No.{0}(으)로 돌아가기',next:'다음 판',skipped:'10판을 건너뛰었어요!',sBasic:'소리: 기본',sFun:'소리: 재미있게',sOff:'소리: 끔',roadTip:'지난 번호를 누르면 다시 할 수 있어요',homeSkip:'⏩ +10판 건너뛰기',dailyBtn:'🏆 오늘의 도전',play:'시작하기',foot:'© 2026 아이디어믹스랩. All rights reserved.',perfect:'음표를 하나도 잃지 않았어요',earn:'5판 연속 완벽! 10판 건너뛰기 기회가 생겼어요',hello:'반가워요!',askPlayed:'화살 미로 게임을 해본 적 있나요?',newbie:'처음이에요',pro:'해봤어요 (조금 앞에서 시작)',outT:'음표가 모두 사라졌어요',outP:'이 판을 처음부터 다시 도전해 보세요.',retry:'다시 도전하기',earnHint:'5판 연속 완벽! 힌트 2개를 받았어요',nextNo:'다음 판 (No.{0})',goNum:'🔢 번호로 가기',goTitle:'몇 번 판으로 갈까요?',goDesc:'1부터 {0}까지 지나온 판을 골라서 다시 할 수 있어요.',goBtn:'가기',close:'닫기',tut0:'화살표를 탭하면 가리키는 방향으로 빠져나가요',tut1:'앞이 막힌 화살표를 누르면 음표가 하나 사라져요. 순서를 찾아보세요'},
- en:{neon:'Neon',dark:'Dark',ivory:'Ivory',white:'White',sec:'s',min:'m ',daily:"Today's Challenge",replaying:'Replaying',streak:'✨ Perfect streak {0}/5',vault:'My vault {0}',ballGet:'Golden balls +{0} · Vault {1}',ballReplay:'Replays don\'t add golden balls',buyT:'Use notes for a hint',buyP:'Spend 20 notes for 1 hint?\nVault: {0} notes',buyYes:'Spend 20 notes',buyNo:'Close',ballNeed:'Out of hints. Collect 20 notes to buy one (you have {0})',noteGet:'Notes +{0} · Vault {1}',noteReplay:'Replays don\'t add notes',left:'Arrows left: {0}',pathOn:'Paths on',pathOff:'Paths off',gridOn:'Grid on',gridOff:'Grid off',hintNone:'Out of hints — 3 more tomorrow',newRec:'🏆 New record!',was:'was {0}',time:'Time {0}',best:' · Best {0}',dailyOk:'Challenge complete!',reached:'Reached No.{0}!',clear:'Clear!',dailyDone:"You beat today's challenge",madeIt:"You've made it to No.{0}",skipTo:'⏩ Skip 10 → No.{0}',home:'Home',backTo:'Back to No.{0}',next:'Next',skipped:'Skipped 10 stages!',sBasic:'Sound: normal',sFun:'Sound: fun',sOff:'Sound: off',roadTip:'Tap a past number to replay it',homeSkip:'⏩ Skip +10',dailyBtn:"🏆 Daily",play:'Play',foot:'© 2026 IdeaFusionLab. All rights reserved.',perfect:'Perfect — no notes lost',earn:'5 perfect clears in a row! You earned a 10-stage skip',hello:'Welcome!',askPlayed:'Have you played arrow puzzle games before?',newbie:"I'm new",pro:'Yes (start a little ahead)',outT:'Out of notes',outP:'Try this stage again from the start.',retry:'Try again',earnHint:'5 perfect in a row! +2 hints',nextNo:'Next (No.{0})',goNum:'🔢 Go to No.',goTitle:'Which stage?',goDesc:'Pick any stage you have reached, 1 to {0}.',goBtn:'Go',close:'Close',tut0:'Tap an arrow and it flies off the way it points',tut1:'Tapping a blocked arrow costs a note. Find the right order!'}};
+ ko:{neon:'네온',dark:'다크',ivory:'아이보리',white:'화이트',sec:'초',min:'분 ',daily:'오늘의 도전',replaying:'다시 하는 중',streak:'✨ 완벽 연속 {0}/5',jumpGot:'🎉 5판 연속 완벽! 10판 점프 기회 +1',jumpBtn:'⏩ 10판 점프 → No.{0} (기회 {1})',vault:'내 금고 {0}',ballGet:'황금볼 +{0} · 내 금고 {1}',ballReplay:'다시 하는 판은 황금볼이 쌓이지 않아요',buyT:'음표로 힌트 쓰기',buyP:'음표 20개로 힌트 1개를 쓸까요?\n내 금고: 음표 {0}개',buyYes:'음표 20개 쓰기',buyNo:'닫기',ballNeed:'힌트를 다 썼어요. 음표 20개가 모이면 힌트를 살 수 있어요 (지금 {0}개)',noteGet:'음표 +{0} · 내 금고 {1}',noteReplay:'다시 하는 판은 음표가 쌓이지 않아요',left:'남은 화살 {0}',pathOn:'경로선 켬',pathOff:'경로선 끔',gridOn:'격자선 켬',gridOff:'격자선 끔',hintNone:'힌트는 내일 다시 3개가 채워져요',newRec:'🏆 신기록!',was:'이전 {0}',time:'기록 {0}',best:' · 내 최고 {0}',dailyOk:'도전 성공!',reached:'No.{0} 달성!',clear:'클리어!',dailyDone:'오늘의 도전을 해냈어요',madeIt:'{0}번째 판까지 왔어요',skipTo:'⏩ 10판 건너뛰고 No.{0}로 가기',home:'처음 화면으로',backTo:'No.{0}(으)로 돌아가기',next:'다음 판',skipped:'10판을 건너뛰었어요!',sBasic:'소리: 기본',sFun:'소리: 재미있게',sOff:'소리: 끔',roadTip:'지난 번호를 누르면 다시 할 수 있어요',homeSkip:'⏩ +10판 건너뛰기',dailyBtn:'🏆 오늘의 도전',play:'시작하기',foot:'© 2026 아이디어믹스랩. All rights reserved.',perfect:'음표를 하나도 잃지 않았어요',earn:'5판 연속 완벽! 10판 건너뛰기 기회가 생겼어요',hello:'반가워요!',askPlayed:'화살 미로 게임을 해본 적 있나요?',newbie:'처음이에요',pro:'해봤어요 (조금 앞에서 시작)',outT:'음표가 모두 사라졌어요',outP:'이 판을 처음부터 다시 도전해 보세요.',retry:'다시 도전하기',earnHint:'5판 연속 완벽! 힌트 2개를 받았어요',nextNo:'다음 판 (No.{0})',goNum:'🔢 번호로 가기',goTitle:'몇 번 판으로 갈까요?',goDesc:'1부터 {0}까지 지나온 판을 골라서 다시 할 수 있어요.',goBtn:'가기',close:'닫기',tut0:'화살표를 탭하면 가리키는 방향으로 빠져나가요',tut1:'앞이 막힌 화살표를 누르면 음표가 하나 사라져요. 순서를 찾아보세요'},
+ en:{neon:'Neon',dark:'Dark',ivory:'Ivory',white:'White',sec:'s',min:'m ',daily:"Today's Challenge",replaying:'Replaying',streak:'✨ Perfect streak {0}/5',jumpGot:'🎉 5 perfect in a row! +1 Jump 10',jumpBtn:'⏩ Jump 10 → No.{0} ({1} left)',vault:'My vault {0}',ballGet:'Golden balls +{0} · Vault {1}',ballReplay:'Replays don\'t add golden balls',buyT:'Use notes for a hint',buyP:'Spend 20 notes for 1 hint?\nVault: {0} notes',buyYes:'Spend 20 notes',buyNo:'Close',ballNeed:'Out of hints. Collect 20 notes to buy one (you have {0})',noteGet:'Notes +{0} · Vault {1}',noteReplay:'Replays don\'t add notes',left:'Arrows left: {0}',pathOn:'Paths on',pathOff:'Paths off',gridOn:'Grid on',gridOff:'Grid off',hintNone:'Out of hints — 3 more tomorrow',newRec:'🏆 New record!',was:'was {0}',time:'Time {0}',best:' · Best {0}',dailyOk:'Challenge complete!',reached:'Reached No.{0}!',clear:'Clear!',dailyDone:"You beat today's challenge",madeIt:"You've made it to No.{0}",skipTo:'⏩ Skip 10 → No.{0}',home:'Home',backTo:'Back to No.{0}',next:'Next',skipped:'Skipped 10 stages!',sBasic:'Sound: normal',sFun:'Sound: fun',sOff:'Sound: off',roadTip:'Tap a past number to replay it',homeSkip:'⏩ Skip +10',dailyBtn:"🏆 Daily",play:'Play',foot:'© 2026 IdeaFusionLab. All rights reserved.',perfect:'Perfect — no notes lost',earn:'5 perfect clears in a row! You earned a 10-stage skip',hello:'Welcome!',askPlayed:'Have you played arrow puzzle games before?',newbie:"I'm new",pro:'Yes (start a little ahead)',outT:'Out of notes',outP:'Try this stage again from the start.',retry:'Try again',earnHint:'5 perfect in a row! +2 hints',nextNo:'Next (No.{0})',goNum:'🔢 Go to No.',goTitle:'Which stage?',goDesc:'Pick any stage you have reached, 1 to {0}.',goBtn:'Go',close:'Close',tut0:'Tap an arrow and it flies off the way it points',tut1:'Tapping a blocked arrow costs a note. Find the right order!'}};
 let LANG=LS.get('am_lang',(navigator.language||'').toLowerCase().startsWith('ko')?'ko':'en');
 const tr=(k,...v)=>(I18N[LANG][k]||I18N.ko[k]||k).replace(/\{(\d)\}/g,(m,i)=>v[i]);
 
@@ -3556,7 +3557,7 @@ function tapArrow(a){
   }else{ // 실패
     a.wrong=true;a.anim={type:'bump',t0:now,s:0,d:k-1+0.32,out:0.07+0.03*k};
     B.arrows[blocker].flash=now+660;
-    combo=0;stars--;lostStar=true;Snd.fail();
+    combo=0;stars--;lostStar=true;Snd.fail();if(!RP&&!DC)LS.set('am_streak',0);
     try{navigator.vibrate&&navigator.vibrate(45);}catch(e){}
     renderStars(stars);
     if(stars<=0){busy=true;setTimeout(showOutOfStars,650);}
@@ -3618,13 +3619,14 @@ function onClear(){
   $('#timeLine').innerHTML=newRec?'<b>'+tr('newRec')+'</b> '+fmtT(tm)+' <span style="opacity:.6">('+tr('was',fmtT(prev))+')</span>':prev===undefined?tr('time',fmtT(tm)):tr('time',fmtT(tm))+tr('best',fmtT(prev));
   if(newRec)setTimeout(()=>{burst(160);Snd.fanfare(false);},700);
   if(!lostStar&&B.no){const p=LS.get('am_perfect',{});p[B.no]=1;LS.set('am_perfect',p);}
-  // 실력으로 여는 건너뛰기: 본 게임에서 별을 하나도 안 잃고 5판 연속 → +10판 건너뛰기 기회 1번
-  let earned=false;
+  // 실력으로 여는 점프: 본 게임에서 음표를 하나도 안 잃고 5판 연속 → 10판 점프 기회 1번 (다시 하는 판·오늘의 도전은 세지 않음)
+  let earned=false,stkNow=0,jumpNew=false;
+  if(!RP&&!DC){if(lostStar)LS.set('am_streak',0);else{stkNow=LS.get('am_streak',0)+1;if(stkNow>=5){jumpNew=true;LS.set('am_jumps',LS.get('am_jumps',0)+1);LS.set('am_streak',0);}else LS.set('am_streak',stkNow);}}
   // 골드바: 이 판에서 찾은 골드바 + 완벽 클리어 보너스 1개 → 내 금고 (다시 하는 판은 쌓이지 않음)
   // 보상: 남은 음표가 내 금고로 (황금볼은 보상 없이 연출만, 다시 하는 판은 쌓이지 않음)
   {const el=$('#earnLine');
     if(RP)el.textContent=tr('noteReplay');
-    else{const got=Math.max(0,stars),tot=LS.get('am_notes',0)+got;LS.set('am_notes',tot);el.innerHTML=NOTE_ICON+' '+tr('noteGet',got,tot.toLocaleString());}
+    else{const got=Math.max(0,stars),tot=LS.get('am_notes',0)+got;LS.set('am_notes',tot);el.innerHTML=NOTE_ICON+' '+tr('noteGet',got,tot.toLocaleString())+(jumpNew?'<br><b>'+tr('jumpGot')+'</b>':'');}
     earned=true;}
   if(DC){const dd=LS.get('am_daily',{});dd[todayKey()]=lostStar?1:2;LS.set('am_daily',dd);}
   const no=B.no,levelDone=!RP&&!DC&&no%100===0;
@@ -3634,7 +3636,8 @@ function onClear(){
   // 다시 하는 중이면: 다음 번호로 이어서 / 지금 판으로 돌아가기
   const prog=toNo(S.lv,S.st);$('#skipBtn').hidden=!(RP&&RP+1<prog);
   if(RP&&RP+1<prog)$('#skipBtn').textContent=tr('backTo',prog.toLocaleString());
-  $('#perfect').hidden=lostStar;
+  $('#perfect').hidden=lostStar;$('#perfect').textContent=tr('perfect')+(stkNow?' · '+tr('streak',Math.min(stkNow,5)):'');
+  {const jn=LS.get('am_jumps',0),jb=$('#jumpBtn');jb.hidden=!(!RP&&!DC&&jn>0);if(!jb.hidden)jb.textContent=tr('jumpBtn',(no+10).toLocaleString(),jn);}
   $('#shapeLine').textContent=B.art||'';$('#shapeLine').hidden=!B.art; // 명화 판이 생기면 '작품 · 작가'만 표시
   $('#nextBtn').textContent=DC?tr('home'):RP?(RP+1<prog?tr('nextNo',(RP+1).toLocaleString()):tr('backTo',prog.toLocaleString())):tr('next');
   $('#clearModal').hidden=false;$('#clearModal').classList.toggle('big',levelDone);
@@ -3649,7 +3652,10 @@ $('#nextBtn').addEventListener('click',()=>{
   if(S.st>=stagesInLevel(S.lv)-1){S.lv++;S.st=0;}else S.st++;
   loadStage();
 });
-// 건너뛰기 사용: 지금 번호에서 10판을 건너뜀
+// 점프 사용: 방금 깬 번호에서 10판 앞으로 (기회 1개 사용)
+$('#jumpBtn').addEventListener('click',()=>{const jn=LS.get('am_jumps',0);if(jn<=0||RP||DC||!B)return;LS.set('am_jumps',jn-1);
+  const r=fromNo(B.no+10);S.lv=r.lv;S.st=r.st;$('#clearModal').hidden=true;confetti=[];fctx.clearRect(0,0,fx.width,fx.height);RP=null;loadStage();});
+// 지금 판으로 돌아가기
 $('#skipBtn').addEventListener('click',()=>{$('#clearModal').hidden=true;confetti=[];fctx.clearRect(0,0,fx.width,fx.height);RP=null;loadStage();});
 
 // ---------- 색종이 ----------
