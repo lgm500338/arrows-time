@@ -3215,9 +3215,10 @@ function ballInside(b,x,y,m){if(b.shape==='blob'){const gx=b.cx+x,gy=b.cy+y;for(
 function segD(A,Bp,x,y){const dx=Bp[0]-A[0],dy=Bp[1]-A[1],t=Math.max(0,Math.min(1,((x-A[0])*dx+(y-A[1])*dy)/(dx*dx+dy*dy||1))),px=A[0]+dx*t,py=A[1]+dy*t;return{d:Math.hypot(x-px,y-py),px,py};}
 function ballInit(){BL.balls=[];if(!B.ball)return;const r0=mulberry32((B.no||1)*977+3);
   B.boxes.forEach((b,bi)=>{const W=(b.shape==='blob'?b.rad:b.shape==='circle'?b.rad:b.shape==='square'?Math.max(b.hw,b.hh):Math.max(...b.poly.map(p=>Math.hypot(p[0],p[1])))),mine=[];
-  let br=Math.max(0.36,Math.min(1.6,Math.sqrt(0.15*ballArea(b)/(b.n*Math.PI))));
-  if(b.shape==='blob')br=Math.min(br,0.55);
-  if(b.poly&&b.poly.length){let inr=1e9;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++)inr=Math.min(inr,segD(b.poly[j],b.poly[i],0,0).d);br=Math.min(br,Math.max(0.36,(inr-0.7)*0.4));}
+  // 틀에 여유가 있으면 구슬을 조금 크게 (틀 넓이의 24%를 구슬이 차지, 좁은 틀은 예전 크기 그대로)
+  let br=Math.max(0.36,Math.min(1.9,Math.sqrt(0.24*ballArea(b)/(b.n*Math.PI))));
+  if(b.shape==='blob')br=Math.min(br,0.68);
+  if(b.poly&&b.poly.length){let inr=1e9;for(let i=0,j=b.poly.length-1;i<b.poly.length;j=i++)inr=Math.min(inr,segD(b.poly[j],b.poly[i],0,0).d);br=Math.min(br,Math.max(0.36,(inr-0.7)*0.5));}
   for(let i=0;i<b.n;i++){let x=0,y=0,ok=false;for(let t=0;t<900&&!ok;t++){x=(r0()*2-1)*W;y=(r0()*2-1)*W;ok=ballInside(b,x,y,br+0.7)&&mine.every(q=>Math.hypot(q.x-x,q.y-y)>q.r+br);}
     if(!ok){x=(r0()-.5)*0.4;y=(r0()-.5)*0.4;}
     const p={bi,x,y,vx:(r0()-.5)*6,vy:(r0()-.5)*6,r:br*(0.9+r0()*0.2),ph:r0()*6.28,spin:0,fly:null};mine.push(p);BL.balls.push(p);}});
@@ -3327,7 +3328,11 @@ function pickGold(k,rg){const A=B.arrows,C=B.cols,R=B.rows,o=new Int16Array(C*R)
   A.forEach(a=>{md=Math.max(md===1?0:md,dist(a));});
   const lo=Math.max(1,Math.round(maxL*0.3)),hi=Math.max(lo,Math.round(maxL*0.6));
   const tiers=[a=>layer[a.id]>=lo&&layer[a.id]<=hi&&dist(a)>md*0.2&&dist(a)<md*0.7,a=>layer[a.id]>=lo&&layer[a.id]<=hi,a=>layer[a.id]>=1&&layer[a.id]<=Math.max(3,Math.ceil(maxL*0.5)),a=>layer[a.id]>=1,a=>true];
-  const out=[];for(const t of tiers){const c=A.filter(a=>t(a)&&!out.includes(a.id));while(c.length&&out.length<k){out.push(c.splice(Math.floor(rg()*c.length),1)[0].id);}if(out.length>=k)break;}
+  // 황금화살이 여러 개면 서로 멀리 떨어뜨림 (한 번에 같이 빠지지 않게): 처음엔 판 대각선의 42% 이상, 못 찾으면 조금씩 줄임
+  const ctr=a=>{let x=0,y=0;for(const [p,q] of a.cells){x+=p;y+=q;}return[x/a.cells.length,y/a.cells.length];},diag=Math.hypot(C,R);
+  let out=[];for(const f of [0.42,0.34,0.26,0.18,0.1,0]){out=[];const far=a=>{const p=ctr(a);return out.every(id=>{const q=ctr(A[id]);return Math.hypot(p[0]-q[0],p[1]-q[1])>=f*diag;});};
+    for(const t of tiers){const c=A.filter(a=>t(a)&&!out.includes(a.id));while(c.length&&out.length<k){const a=c.splice(Math.floor(rg()*c.length),1)[0];if(far(a))out.push(a.id);}if(out.length>=k)break;}
+    if(out.length>=k)break;}
   return out;}
 function loadStage(){
   const T=tgt();B=buildBoard(T.lv,T.st,T.daily);B.lv=T.lv;B.st=T.st;B.no=DC?null:toNo(T.lv,T.st);B.key=modeKey();B.palI=hashNo((B.no||0)*31+(DC?dayNum():0)+17)>>>3;B.mono=!DC&&(B.no||0)>=20&&!(B.shape&&B.shape.pal)&&hashNo((B.no||0)*17+3)%6===0;B.goldMix=!DC&&(B.no||0)>=30;B.goldIds=new Set();if(B.goldMix){const k=Math.max(1,Math.min(5,Math.floor((B.no||0)/1000))),rg=mulberry32((B.no||0)*131+7);for(const id of pickGold(k,rg))B.goldIds.add(id);}
@@ -3546,7 +3551,7 @@ function launchArrow(a,now,popCol){
 // 금색 화살: 가까운 화살부터 정해진 개수만큼 "다다닥" 함께 빠짐
 function goldChain(g){
   const hx=g.cells[g.cells.length-1][0],hy=g.cells[g.cells.length-1][1],bb=B;
-  const list=B.arrows.filter(o=>o.alive&&!o.anim&&o.id!==g.id).map(o=>{let d=1e9;for(const [cx,cy] of o.cells)d=Math.min(d,Math.hypot(cx-hx,cy-hy));return[d,o];})
+  const list=B.arrows.filter(o=>o.alive&&!o.anim&&o.id!==g.id&&!B.goldIds.has(o.id)).map(o=>{let d=1e9;for(const [cx,cy] of o.cells)d=Math.min(d,Math.hypot(cx-hx,cy-hy));return[d,o];})
     .sort((p,q)=>p[0]-q[0]).slice(0,goldN(B.no||0)).map(p=>p[1]);
   list.forEach((o,i)=>setTimeout(()=>{if(B!==bb||busy||!o.alive||o.anim)return;launchArrow(o,performance.now(),'#f6d98b');kick();},120+i*80));
 }
